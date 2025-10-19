@@ -6,6 +6,7 @@ import {
     unmarshallTimeAttendance,
 } from "@/utils/dynamo";
 import { RawTimeAttendanceItem } from "@/types/attendance";
+import {fromZonedTime, toZonedTime} from "date-fns-tz";
 
 export async function GET(req: Request) {
     try {
@@ -13,19 +14,33 @@ export async function GET(req: Request) {
         const dateParam = searchParams.get("date");
         const startParam = searchParams.get("start");
         const endParam = searchParams.get("end");
-        const userTypeParam = searchParams.get("userType") || "staff";
+        const userTypeParam = searchParams.get("userType");
+        const timeZone = "America/Chicago";
 
         // --- Determine time range ---
         let start: string, end: string;
         if (startParam && endParam) {
-            // Weekly / range query
-            start = new Date(startParam).toISOString();
-            end = new Date(endParam).toISOString();
+            // Convert CST inputs to UTC
+            const localStartIso = `${startParam}T00:00:00`;
+            const localEndIso = `${endParam}T23:59:59.999`;
+
+            // Convert local (CST/CDT) times into UTC instants
+            const startUtcDate = fromZonedTime(localStartIso, timeZone);
+            const endUtcDate = fromZonedTime(localEndIso, timeZone);
+
+            start = startUtcDate.toISOString();
+            end = endUtcDate.toISOString();
         } else if (dateParam) {
-            // Single day query (legacy support)
-            const date = new Date(dateParam);
-            start = new Date(date.setUTCHours(0, 0, 0, 0)).toISOString();
-            end = new Date(date.setUTCHours(23, 59, 59, 999)).toISOString();
+            // Single day query
+            const localStartIso = `${dateParam}T00:00:00`;
+            const localEndIso = `${dateParam}T23:59:59.999`;
+
+            // Convert local (CST/CDT) times into UTC instants
+            const startUtcDate = fromZonedTime(localStartIso, timeZone);
+            const endUtcDate = fromZonedTime(localEndIso, timeZone);
+
+            start = startUtcDate.toISOString();
+            end = endUtcDate.toISOString();
         } else {
             return NextResponse.json(
                 { error: "Missing ?date=YYYY-MM-DD or ?start/end range" },
@@ -33,9 +48,19 @@ export async function GET(req: Request) {
             );
         }
 
-        // --- Build key pattern for each month in range ---
-        // DynamoDB keys use "UserTypeYearMonth" (e.g. staff#2025-10)
-        // If the week crosses a month boundary, we need to query both
+        // --- Parse user types (can be comma-separated) ---
+        const userTypes = userTypeParam
+            ? userTypeParam.split(",").map((t) => t.trim().toLowerCase())
+            : [];
+
+        if (userTypes.length === 0) {
+            return NextResponse.json(
+                { error: "Missing or empty userType parameter" },
+                { status: 400 }
+            );
+        }
+
+        // --- Build list of months in range ---
         const months: string[] = [];
         const startMonth = start.slice(0, 7);
         const endMonth = end.slice(0, 7);
@@ -44,25 +69,28 @@ export async function GET(req: Request) {
 
         const allItems: RawTimeAttendanceItem[] = [];
 
-        for (const month of months) {
-            const userTypeYearMonth = `${userTypeParam}#${month}`;
-            const params = {
-                TableName: TIME_ATTENDANCE_TABLE,
-                KeyConditionExpression:
-                    "#utym = :utym AND #ts BETWEEN :start AND :end",
-                ExpressionAttributeNames: {
-                    "#utym": "UserTypeYearMonth",
-                    "#ts": "DateTimeStamp",
-                },
-                ExpressionAttributeValues: {
-                    ":utym": { S: userTypeYearMonth },
-                    ":start": { S: start },
-                    ":end": { S: end },
-                },
-            };
+        // --- Query for all user types and months ---
+        for (const userType of userTypes) {
+            for (const month of months) {
+                const userTypeYearMonth = `${userType}#${month}`;
+                const params = {
+                    TableName: TIME_ATTENDANCE_TABLE,
+                    KeyConditionExpression:
+                        "#utym = :utym AND #ts BETWEEN :start AND :end",
+                    ExpressionAttributeNames: {
+                        "#utym": "UserTypeYearMonth",
+                        "#ts": "DateTimeStamp",
+                    },
+                    ExpressionAttributeValues: {
+                        ":utym": { S: userTypeYearMonth },
+                        ":start": { S: start },
+                        ":end": { S: end },
+                    },
+                };
 
-            const items = await queryAllAttendance<RawTimeAttendanceItem>(params);
-            allItems.push(...items);
+                const items = await queryAllAttendance<RawTimeAttendanceItem>(params);
+                allItems.push(...items);
+            }
         }
 
         if (allItems.length === 0) {

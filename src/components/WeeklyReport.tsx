@@ -13,6 +13,7 @@ import DatePicker from "@/components/DatePicker";
 import AttendanceTable, { Column } from "@/components/AttendanceTable";
 import { cn } from "@/lib/utils";
 import DownloadCSVButton from "@/components/DownloadCsvButton";
+import {fromZonedTime, toZonedTime} from "date-fns-tz";
 
 type BaseUser = {
     userId: string;
@@ -36,8 +37,10 @@ type UserDayData = {
     tooltip: string;
 };
 
+const LOCAL_DATE_STORAGE_KEY = "report-selected-date";
+
 export default function WeeklyReport() {
-    const [selectedDate, setSelectedDate] = useState(new Date());
+    const [selectedDate, setSelectedDate] = useState<Date>(new Date());
     const [records, setRecords] = useState<AttendanceRecord[]>([]);
     const [users, setUsers] = useState<BaseUser[]>([]);
     const [loading, setLoading] = useState(false);
@@ -52,18 +55,35 @@ export default function WeeklyReport() {
         [weekStart]
     );
 
+    // Roles to report on
+    const reportedRoles = useMemo(() => ["learner", "staff", "volunteer"], []);
+
+    const timeZone = "America/Chicago";
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+
+        const savedDate = localStorage.getItem(LOCAL_DATE_STORAGE_KEY);
+        if (savedDate) {
+            const parsed = new Date(savedDate);
+            if (!isNaN(parsed.getTime())) {
+                setSelectedDate(parsed);
+            }
+        }
+    }, []);
+
     // Fetch users once
     useEffect(() => {
         (async () => {
             try {
-                const res = await fetch("/api/users?type=allClockable");
+                const res = await fetch(`/api/users?roles=${reportedRoles.join(',')}`);
                 const data = await res.json();
                 setUsers(data);
             } catch (err) {
                 console.error("Error fetching users:", err);
             }
         })();
-    }, []);
+    }, [reportedRoles]);
 
     // Fetch attendance when week changes
     useEffect(() => {
@@ -72,8 +92,18 @@ export default function WeeklyReport() {
             try {
                 const start = format(weekStart, "yyyy-MM-dd");
                 const end = format(weekEnd, "yyyy-MM-dd");
-                const res = await fetch(`/api/reports/attendance?start=${start}&end=${end}`);
+                const res = await fetch(`/api/reports/attendance?start=${start}&end=${end}&userType=${reportedRoles.join(',')}`);
                 const data = await res.json();
+
+                if (!res.ok) {
+                    console.error("API Error:", data.error || "Unknown error");
+                    return [];
+                }
+
+                if (!Array.isArray(data)) {
+                    console.error("Unexpected data shape:", data);
+                    return [];
+                }
                 setRecords(data);
             } catch (err) {
                 console.error("Error fetching weekly attendance:", err);
@@ -82,23 +112,30 @@ export default function WeeklyReport() {
             }
         };
         fetchRecords();
-    }, [weekStart, weekEnd]);
+    }, [weekStart, weekEnd, reportedRoles]);
 
-    // Precompute all user-day data to avoid recalculating per cell
     const userDayData = useMemo(() => {
         return users.map((user) => {
             const days: UserDayData[] = daysOfWeek.map((day) => {
-                const dayRecords = records.filter(
-                    (r) => r.userId === user.userId && isSameDay(parseISO(r.dateTimeStamp), day)
-                );
+                // Ensure `day` is anchored to CST midnight
+                const dayCST = toZonedTime(fromZonedTime(day, timeZone), timeZone);
+
+                const dayRecords = records.filter((r) => {
+                    const recordLocal = toZonedTime(parseISO(r.dateTimeStamp), timeZone);
+                    return r.userId === user.userId && isSameDay(recordLocal, dayCST);
+                });
 
                 const inTimes = dayRecords
                     .filter((r) => r.state.toLowerCase() === "in")
-                    .map((r) => format(parseISO(r.dateTimeStamp), "HH:mm"));
+                    .map((r) =>
+                        format(toZonedTime(parseISO(r.dateTimeStamp), timeZone), "HH:mm")
+                    );
 
                 const outTimes = dayRecords
                     .filter((r) => r.state.toLowerCase() === "out")
-                    .map((r) => format(parseISO(r.dateTimeStamp), "HH:mm"));
+                    .map((r) =>
+                        format(toZonedTime(parseISO(r.dateTimeStamp), timeZone), "HH:mm")
+                    );
 
                 const status =
                     inTimes.length && outTimes.length
@@ -120,7 +157,6 @@ export default function WeeklyReport() {
             return { user, days };
         });
     }, [users, records, daysOfWeek]);
-
     // Columns
     const columns = useMemo<Column<BaseUser>[]>(() => {
         const today = new Date();
@@ -149,7 +185,7 @@ export default function WeeklyReport() {
                                         : dayData.status === "Partial"
                                             ? "bg-yellow-100 text-yellow-800"
                                             : "text-gray-500",
-                                    isToday ? "ring-2 ring-blue-400 ring-inset" : ""
+                                    isToday ? "" : ""
                                 )}
                                 title={dayData.tooltip || undefined}
                             >

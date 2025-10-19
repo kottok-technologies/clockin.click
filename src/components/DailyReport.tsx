@@ -31,18 +31,7 @@ export default function DailyReport() {
 
 
     const [records, setRecords] = useState<AttendanceRecord[]>([]);
-    const [selectedDate, setSelectedDate] = useState<Date>(() => {
-        if (typeof window !== "undefined") {
-            const savedDate = localStorage.getItem(LOCAL_DATE_STORAGE_KEY);
-            if (savedDate) {
-                const parsed = new Date(savedDate);
-                if (!isNaN(parsed.getTime())) {
-                    return parsed;
-                }
-            }
-        }
-        return new Date();
-    });
+    const [selectedDate, setSelectedDate] = useState<Date>(new Date());
     const [query, setQuery] = useState("");
     const [loading, setLoading] = useState(false);
     const [userTypeFilter, setUserTypeFilter] = useState(() => {
@@ -54,6 +43,18 @@ export default function DailyReport() {
         }
         return "staff";
     });
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+
+        const savedDate = localStorage.getItem(LOCAL_DATE_STORAGE_KEY);
+        if (savedDate) {
+            const parsed = new Date(savedDate);
+            if (!isNaN(parsed.getTime())) {
+                setSelectedDate(parsed);
+            }
+        }
+    }, []);
 
     useEffect(() => {
         const fetchRecords = async () => {
@@ -72,15 +73,6 @@ export default function DailyReport() {
 
         fetchRecords();
     }, [selectedDate, userTypeFilter]);
-
-    // ✅ Persist changes
-    useEffect(() => {
-        localStorage.setItem(LOCAL_DATE_STORAGE_KEY, selectedDate.toISOString());
-    }, [selectedDate]);
-
-    useEffect(() => {
-        localStorage.setItem(LOCAL_TYPE_STORAGE_KEY, userTypeFilter);
-    }, [userTypeFilter]);
 
     const filtered = records
         .filter((r) => {
