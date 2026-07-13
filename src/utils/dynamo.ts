@@ -15,6 +15,7 @@ import {
 } from "@aws-sdk/client-dynamodb";
 import { isGuardian, BaseUser, GuardianUser, RegularUser, User } from "@/types/user";
 import { TimeAttendanceRecord, RawTimeAttendanceItem} from "@/types/attendance";
+import { enumerateMonths } from "@/utils/attendance";
 
 export const client = new DynamoDBClient({ region: process.env.AWS_REGION });
 export const USERS_TABLE = `clockinclick-${process.env.SCHOOL_NAME}-Users` || "users";
@@ -473,6 +474,42 @@ export const queryAllAttendance = async <RawTimeAttendanceItem>(
     } while (lastEvaluatedKey);
 
     return items;
+};
+
+/**
+ * Fetch every attendance punch for the given user types between two UTC instants.
+ *
+ * The table is partitioned by `{userType}#{yyyy-MM}`, so a range fans out into
+ * one query per user type per month it touches.
+ */
+export const queryAttendanceRange = async (
+    userTypes: string[],
+    startIso: string,
+    endIso: string
+): Promise<RawTimeAttendanceItem[]> => {
+    const months = enumerateMonths(startIso, endIso);
+
+    const batches = await Promise.all(
+        userTypes.flatMap((userType) =>
+            months.map((month) =>
+                queryAllAttendance<RawTimeAttendanceItem>({
+                    TableName: TIME_ATTENDANCE_TABLE,
+                    KeyConditionExpression: "#utym = :utym AND #ts BETWEEN :start AND :end",
+                    ExpressionAttributeNames: {
+                        "#utym": "UserTypeYearMonth",
+                        "#ts": "DateTimeStamp",
+                    },
+                    ExpressionAttributeValues: {
+                        ":utym": { S: `${userType}#${month}` },
+                        ":start": { S: startIso },
+                        ":end": { S: endIso },
+                    },
+                })
+            )
+        )
+    );
+
+    return batches.flat();
 };
 
 /**

@@ -1,56 +1,39 @@
 import { NextResponse } from "next/server";
 import {
-    TIME_ATTENDANCE_TABLE,
-    queryAllAttendance,
+    queryAttendanceRange,
     batchGetUsersByIds,
     unmarshallTimeAttendance,
 } from "@/utils/dynamo";
-import { RawTimeAttendanceItem } from "@/types/attendance";
-import {fromZonedTime, toZonedTime} from "date-fns-tz";
+import { toUtcRange } from "@/utils/attendance";
+import { requireSession } from "@/utils/apiAuth";
 
 export async function GET(req: Request) {
+    const unauthorized = await requireSession();
+    if (unauthorized) return unauthorized;
+
     try {
         const { searchParams } = new URL(req.url);
         const dateParam = searchParams.get("date");
         const startParam = searchParams.get("start");
         const endParam = searchParams.get("end");
         const userTypeParam = searchParams.get("userType");
-        const timeZone = "America/Chicago";
 
-        // --- Determine time range ---
-        let start: string, end: string;
-        if (startParam && endParam) {
-            // Convert CST inputs to UTC
-            const localStartIso = `${startParam}T00:00:00`;
-            const localEndIso = `${endParam}T23:59:59.999`;
+        // --- Determine time range (local dates in, UTC instants out) ---
+        const startDate = startParam ?? dateParam;
+        const endDate = endParam ?? dateParam;
 
-            // Convert local (CST/CDT) times into UTC instants
-            const startUtcDate = fromZonedTime(localStartIso, timeZone);
-            const endUtcDate = fromZonedTime(localEndIso, timeZone);
-
-            start = startUtcDate.toISOString();
-            end = endUtcDate.toISOString();
-        } else if (dateParam) {
-            // Single day query
-            const localStartIso = `${dateParam}T00:00:00`;
-            const localEndIso = `${dateParam}T23:59:59.999`;
-
-            // Convert local (CST/CDT) times into UTC instants
-            const startUtcDate = fromZonedTime(localStartIso, timeZone);
-            const endUtcDate = fromZonedTime(localEndIso, timeZone);
-
-            start = startUtcDate.toISOString();
-            end = endUtcDate.toISOString();
-        } else {
+        if (!startDate || !endDate) {
             return NextResponse.json(
                 { error: "Missing ?date=YYYY-MM-DD or ?start/end range" },
                 { status: 400 }
             );
         }
 
+        const { start, end } = toUtcRange(startDate, endDate);
+
         // --- Parse user types (can be comma-separated) ---
         const userTypes = userTypeParam
-            ? userTypeParam.split(",").map((t) => t.trim().toLowerCase())
+            ? userTypeParam.split(",").map((t) => t.trim().toLowerCase()).filter(Boolean)
             : [];
 
         if (userTypes.length === 0) {
@@ -60,38 +43,7 @@ export async function GET(req: Request) {
             );
         }
 
-        // --- Build list of months in range ---
-        const months: string[] = [];
-        const startMonth = start.slice(0, 7);
-        const endMonth = end.slice(0, 7);
-        months.push(startMonth);
-        if (endMonth !== startMonth) months.push(endMonth);
-
-        const allItems: RawTimeAttendanceItem[] = [];
-
-        // --- Query for all user types and months ---
-        for (const userType of userTypes) {
-            for (const month of months) {
-                const userTypeYearMonth = `${userType}#${month}`;
-                const params = {
-                    TableName: TIME_ATTENDANCE_TABLE,
-                    KeyConditionExpression:
-                        "#utym = :utym AND #ts BETWEEN :start AND :end",
-                    ExpressionAttributeNames: {
-                        "#utym": "UserTypeYearMonth",
-                        "#ts": "DateTimeStamp",
-                    },
-                    ExpressionAttributeValues: {
-                        ":utym": { S: userTypeYearMonth },
-                        ":start": { S: start },
-                        ":end": { S: end },
-                    },
-                };
-
-                const items = await queryAllAttendance<RawTimeAttendanceItem>(params);
-                allItems.push(...items);
-            }
-        }
+        const allItems = await queryAttendanceRange(userTypes, start, end);
 
         if (allItems.length === 0) {
             return NextResponse.json([]);

@@ -14,6 +14,7 @@ import AttendanceTable, { Column } from "@/components/AttendanceTable";
 import { cn } from "@/lib/utils";
 import DownloadCSVButton from "@/components/DownloadCsvButton";
 import {fromZonedTime, toZonedTime} from "date-fns-tz";
+import { TIME_ZONE } from "@/utils/attendance";
 
 type BaseUser = {
     userId: string;
@@ -57,8 +58,6 @@ export default function WeeklyReport() {
 
     // Roles to report on
     const reportedRoles = useMemo(() => ["learner", "staff", "volunteer"], []);
-
-    const timeZone = "America/Chicago";
 
     useEffect(() => {
         if (typeof window === "undefined") return;
@@ -118,23 +117,23 @@ export default function WeeklyReport() {
         return users.map((user) => {
             const days: UserDayData[] = daysOfWeek.map((day) => {
                 // Ensure `day` is anchored to CST midnight
-                const dayCST = toZonedTime(fromZonedTime(day, timeZone), timeZone);
+                const dayCST = toZonedTime(fromZonedTime(day, TIME_ZONE), TIME_ZONE);
 
                 const dayRecords = records.filter((r) => {
-                    const recordLocal = toZonedTime(parseISO(r.dateTimeStamp), timeZone);
+                    const recordLocal = toZonedTime(parseISO(r.dateTimeStamp), TIME_ZONE);
                     return r.userId === user.userId && isSameDay(recordLocal, dayCST);
                 });
 
                 const inTimes = dayRecords
                     .filter((r) => r.state.toLowerCase() === "in")
                     .map((r) =>
-                        format(toZonedTime(parseISO(r.dateTimeStamp), timeZone), "HH:mm")
+                        format(toZonedTime(parseISO(r.dateTimeStamp), TIME_ZONE), "HH:mm")
                     );
 
                 const outTimes = dayRecords
                     .filter((r) => r.state.toLowerCase() === "out")
                     .map((r) =>
-                        format(toZonedTime(parseISO(r.dateTimeStamp), timeZone), "HH:mm")
+                        format(toZonedTime(parseISO(r.dateTimeStamp), TIME_ZONE), "HH:mm")
                     );
 
                 const status =
