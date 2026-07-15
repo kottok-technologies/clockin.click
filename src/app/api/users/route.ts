@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { putUser, getAllUsers, getUsersByRoles } from "@/utils/dynamo";
 import { User } from "@/types/user";
+import { requireAdminApi } from "@/utils/apiAuth";
 
 // -------------------- GET: fetch users (with optional filtering) --------------------
 export async function GET(req: NextRequest) {
+    const unauthorized = await requireAdminApi("read");
+    if (unauthorized) return unauthorized;
     try {
         const { searchParams } = new URL(req.url);
         const rolesParam = searchParams.get("roles");
@@ -27,6 +30,8 @@ export async function GET(req: NextRequest) {
 
 // -------------------- POST: create a new user --------------------
 export async function POST(req: NextRequest) {
+    const unauthorized = await requireAdminApi("edit");
+    if (unauthorized) return unauthorized;
     try {
         const body = await req.json();
 

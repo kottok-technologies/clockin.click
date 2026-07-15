@@ -24,6 +24,10 @@ export interface RegularUser extends BaseUser {
 // Final User type
 export type User = GuardianUser | RegularUser;
 
+export type KioskUser = Pick<BaseUser, "userId" | "firstName" | "lastName" | "roles" | "status" | "lastClockTransaction"> & {
+    learners?: Array<Pick<BaseUser, "userId" | "firstName" | "lastName" | "status">>;
+};
+
 // Type guard helper
 export function isGuardian(user: User): user is GuardianUser {
     return user.roles.includes("guardian");
