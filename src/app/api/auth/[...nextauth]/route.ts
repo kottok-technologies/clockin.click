@@ -34,7 +34,6 @@ export const authOptions: AuthOptions = {
         },
     },
     pages: {
-        signIn: "/auth/signin",
         error: "/auth/unauthorized", // redirect non-admins here
     },
 }
