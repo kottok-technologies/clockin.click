@@ -28,15 +28,15 @@ resource "aws_dynamodb_table" "users" {
   }
 
   global_secondary_index {
-    name               = "EmailIndex"
-    hash_key           = "Email"
-    projection_type    = "ALL"
+    name            = "EmailIndex"
+    hash_key        = "Email"
+    projection_type = "ALL"
   }
 
   global_secondary_index {
-    name               = "PinIndex"
-    hash_key           = "Pin"
-    projection_type    = "ALL"
+    name            = "PinIndex"
+    hash_key        = "Pin"
+    projection_type = "ALL"
   }
 
   tags = {
@@ -48,7 +48,7 @@ resource "aws_dynamodb_table" "users" {
 
 # DynamoDB TimeAttendance table
 resource "aws_dynamodb_table" "time_attendance" {
-  name         = "${var.project_name}-${var.school_id}-TimeAttendance"
+  name                        = "${var.project_name}-${var.school_id}-TimeAttendance"
   hash_key                    = "UserTypeYearMonth"
   range_key                   = "DateTimeStamp"
   billing_mode                = "PAY_PER_REQUEST"
@@ -85,9 +85,9 @@ resource "aws_dynamodb_table" "time_attendance" {
   }
 
   global_secondary_index {
-    name               = "DateTimeStamp-index"
-    hash_key           = "DateTimeStamp"
-    projection_type    = "ALL"
+    name            = "DateTimeStamp-index"
+    hash_key        = "DateTimeStamp"
+    projection_type = "ALL"
   }
 
   global_secondary_index {
@@ -97,7 +97,7 @@ resource "aws_dynamodb_table" "time_attendance" {
   }
 
   tags = {
-    client = var.school_id
+    client      = var.school_id
     application = var.project_name
   }
 }
