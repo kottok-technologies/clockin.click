@@ -2,11 +2,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserById, deleteUser, updateUser, getAllUsers } from "@/utils/dynamo";
 import {User} from "@/types/user";
+import { requireAdminApi } from "@/utils/apiAuth";
 
 export async function GET(
     req: NextRequest,
     context: { params: Promise<{ id: string }> }
 ) {
+    const unauthorized = await requireAdminApi("read");
+    if (unauthorized) return unauthorized;
     const { id } = await context.params;
     const user = await getUserById(id);
     if (!user) {
@@ -16,19 +19,20 @@ export async function GET(
 }
 
 export async function PATCH(req: NextRequest, context: { params: Promise<{ id: string }> }) {
+    const unauthorized = await requireAdminApi("edit");
+    if (unauthorized) return unauthorized;
     const { id } = await context.params;
     const body = await req.json();
 
     try {
-        const allowedUpdates = {
-            firstName: body.firstName,
-            lastName: body.lastName,
-            pin: body.pin,
-            email: body.email,
-            adminLevel: body.adminLevel,
-            roles: Array.isArray(body.roles) ? body.roles : [],        // roles as string[]
-            learners: Array.isArray(body.learners) ? body.learners : [], // learners as User[]
-        };
+        const allowedUpdates: Partial<User> = {};
+        if ("firstName" in body) allowedUpdates.firstName = body.firstName;
+        if ("lastName" in body) allowedUpdates.lastName = body.lastName;
+        if ("pin" in body) allowedUpdates.pin = body.pin;
+        if ("email" in body) allowedUpdates.email = body.email;
+        if ("adminLevel" in body) allowedUpdates.adminLevel = body.adminLevel;
+        if ("roles" in body && Array.isArray(body.roles)) allowedUpdates.roles = body.roles;
+        if ("learners" in body && Array.isArray(body.learners)) allowedUpdates.learners = body.learners;
 
         const updatedUser: User | null = await updateUser(id, allowedUpdates);
 
@@ -40,6 +44,8 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
 }
 
 export async function DELETE(req: NextRequest, context: { params: Promise<{ id: string }> }) {
+    const unauthorized = await requireAdminApi("edit");
+    if (unauthorized) return unauthorized;
     const { id } = await context.params;
 
     try {

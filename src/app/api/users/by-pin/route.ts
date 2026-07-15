@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserByPin } from "@/utils/dynamo";
+import { KioskUser } from "@/types/user";
 
 export async function GET(req: NextRequest) {
     const pin = req.nextUrl.searchParams.get("pin");
@@ -8,5 +9,21 @@ export async function GET(req: NextRequest) {
     const user = await getUserByPin(pin);
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
-    return NextResponse.json(user);
+    const kioskUser: KioskUser = {
+        userId: user.userId,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        roles: user.roles,
+        status: user.status,
+        lastClockTransaction: user.lastClockTransaction,
+        ...(user.roles.includes("guardian") ? {
+            learners: user.learners?.map((learner) => ({
+                userId: learner.userId,
+                firstName: learner.firstName,
+                lastName: learner.lastName,
+                status: learner.status,
+            })) ?? [],
+        } : {}),
+    };
+    return NextResponse.json(kioskUser);
 }

@@ -18,3 +18,16 @@ export const requireSession = async (): Promise<NextResponse | null> => {
 
     return null;
 };
+
+export const requireAdminApi = async (
+    access: "read" | "edit" = "read"
+): Promise<NextResponse | null> => {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.isAdmin) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if (access === "edit" && session.user.adminLevel !== "edit") {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    return null;
+};

@@ -1,16 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { User } from "@/types/user";
+import { KioskUser } from "@/types/user";
 import StatusBadge from "@/components/StatusBadge";
 
 export default function PinEntry() {
     const [pin, setPin] = useState("");
-    const [user, setUser] = useState<User | null>(null);
+    const [user, setUser] = useState<KioskUser | null>(null);
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
     const [selectedActions, setSelectedActions] = useState<
-        { userId: string; status: "In" | "Out"; type: string; actorId: string }[]
+        { userId: string; status: "In" | "Out" }[]
     >([]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -35,7 +35,7 @@ export default function PinEntry() {
                 setLoading(false);
                 return;
             }
-            const userData: User = await res.json();
+            const userData: KioskUser = await res.json();
             setUser(userData);
         } catch (err) {
             console.error(err);
@@ -54,9 +54,7 @@ export default function PinEntry() {
 
     const toggleAction = (
         userId: string,
-        status: "In" | "Out",
-        type: string,
-        actorId: string
+        status: "In" | "Out"
     ) => {
         setSelectedActions((prev) => {
             const existing = prev.find((a) => a.userId === userId);
@@ -66,7 +64,7 @@ export default function PinEntry() {
             }
             // replace if exists, otherwise add
             const others = prev.filter((a) => a.userId !== userId);
-            return [...others, { userId, status, type, actorId }];
+            return [...others, { userId, status }];
         });
     };
 
@@ -83,27 +81,18 @@ export default function PinEntry() {
             // Perform all updates in parallel
             await Promise.all(
                 selectedActions.map(async (action) => {
-                    const { userId, status, type, actorId } = action;
+                    const { userId, status } = action;
                     const res = await fetch(`/api/users/${userId}/status`, {
                         method: "PATCH",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
                             status,
-                            userType: type,
-                            clockedById: actorId,
+                            pin,
                         }),
                     });
                     if (!res.ok) throw new Error(`Failed to update ${userId}`);
                 })
             );
-
-            // Refresh after all updates
-            if (user) {
-                const refreshedUser: User = await fetch(`/api/users/${user.userId}`).then((r) =>
-                    r.json()
-                );
-                setUser(refreshedUser);
-            }
 
             setSelectedActions([]);
         } catch (err) {
@@ -120,12 +109,6 @@ export default function PinEntry() {
         user && user.roles.some((r) => ["staff", "volunteer"].includes(r.toLowerCase()));
 
     const isGuardian = user?.roles.includes("guardian");
-    const userType = user?.roles.includes("staff")
-        ? "staff"
-        : user?.roles.includes("volunteer")
-            ? "volunteer"
-            : "learner";
-
     const isSelected = (userId: string, status: "In" | "Out") =>
         selectedActions.some((a) => a.userId === userId && a.status === status);
 
@@ -179,7 +162,7 @@ export default function PinEntry() {
                         <div className="flex gap-4">
                             <button
                                 onClick={() =>
-                                    toggleAction(user.userId, "In", userType, user.userId)
+                                    toggleAction(user.userId, "In")
                                 }
                                 className={`px-6 py-3 text-xl font-semibold rounded ${
                                     isSelected(user.userId, "In")
@@ -191,7 +174,7 @@ export default function PinEntry() {
                             </button>
                             <button
                                 onClick={() =>
-                                    toggleAction(user.userId, "Out", userType, user.userId)
+                                    toggleAction(user.userId, "Out")
                                 }
                                 className={`px-6 py-3 text-xl font-semibold rounded ${
                                     isSelected(user.userId, "Out")
@@ -227,7 +210,7 @@ export default function PinEntry() {
                                         <div className="flex gap-4">
                                             <button
                                                 onClick={() =>
-                                                    toggleAction(learner.userId, "In", "learner", user.userId)
+                                                    toggleAction(learner.userId, "In")
                                                 }
                                                 className={`px-4 py-2 rounded ${
                                                     isSelected(learner.userId, "In")
@@ -239,7 +222,7 @@ export default function PinEntry() {
                                             </button>
                                             <button
                                                 onClick={() =>
-                                                    toggleAction(learner.userId, "Out", "learner", user.userId)
+                                                    toggleAction(learner.userId, "Out")
                                                 }
                                                 className={`px-4 py-2 rounded ${
                                                     isSelected(learner.userId, "Out")
