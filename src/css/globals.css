@@ -191,7 +191,47 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-slate-50 text-slate-900 antialiased;
+  }
+  button, a, input, select {
+    @apply focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200;
+  }
+}
+
+@layer components {
+  .kiosk-shell {
+    background:
+      radial-gradient(circle at 15% 15%, rgb(209 250 229 / 0.8), transparent 32rem),
+      radial-gradient(circle at 90% 85%, rgb(224 242 254 / 0.75), transparent 30rem),
+      #f8fafc;
+  }
+
+  .surface-card {
+    @apply rounded-3xl border border-white/80 bg-white/95 shadow-[0_24px_70px_-32px_rgba(15,23,42,0.35)];
+  }
+
+  .keypad-button {
+    @apply flex h-14 items-center justify-center rounded-xl border border-slate-200 bg-white text-xl font-black text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:bg-emerald-50 active:translate-y-0 active:bg-emerald-100;
+  }
+
+  .primary-action {
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-5 py-3 text-base font-black text-white shadow-sm transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none;
+  }
+
+  .secondary-action {
+    @apply inline-flex min-h-12 items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-3 text-base font-bold text-slate-700 transition hover:bg-slate-50;
+  }
+
+  .clock-choice {
+    @apply flex min-h-12 items-center justify-center gap-2 rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-2 text-sm font-black text-slate-700 transition hover:border-slate-300 hover:bg-white;
+  }
+
+  .clock-choice-in-active {
+    @apply border-emerald-600 bg-emerald-600 text-white hover:border-emerald-700 hover:bg-emerald-700;
+  }
+
+  .clock-choice-out-active {
+    @apply border-amber-600 bg-amber-600 text-white hover:border-amber-700 hover:bg-amber-700;
   }
 }
 
