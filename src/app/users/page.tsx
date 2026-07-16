@@ -7,8 +7,10 @@ export default async function AdminUsersPage() {
     const users = await getAllUsers();
 
     return (
-        <div className="p-8">
-            <h1 className="text-3xl font-bold mb-6 text-gray-800">User Management</h1>
+        <div className="mx-auto max-w-7xl p-5 sm:p-8">
+            <p className="text-sm font-black uppercase tracking-[0.18em] text-emerald-700">Administration</p>
+            <h1 className="mt-1 text-3xl font-black text-slate-900">People</h1>
+            <p className="mb-6 mt-2 text-slate-500">Manage your school community, roles, and family connections.</p>
             <AdminUserTable users={users} />
         </div>
     );
