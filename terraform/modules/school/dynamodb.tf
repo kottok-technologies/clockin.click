@@ -101,3 +101,26 @@ resource "aws_dynamodb_table" "time_attendance" {
     application = var.project_name
   }
 }
+
+# Per-school operational settings, such as staff and student day schedules.
+resource "aws_dynamodb_table" "settings" {
+  name         = "${var.project_name}-${var.school_id}-Settings"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "SettingId"
+
+  deletion_protection_enabled = true
+
+  point_in_time_recovery {
+    enabled = true
+  }
+
+  attribute {
+    name = "SettingId"
+    type = "S"
+  }
+
+  tags = {
+    client      = var.school_id
+    application = var.project_name
+  }
+}

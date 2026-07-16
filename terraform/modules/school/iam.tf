@@ -58,7 +58,11 @@ resource "aws_iam_role_policy" "amplify_compute" {
         "dynamodb:BatchGetItem", "dynamodb:DeleteItem", "dynamodb:GetItem",
         "dynamodb:PutItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:UpdateItem"
       ]
-      Resource = ["${aws_dynamodb_table.users.arn}*", "${aws_dynamodb_table.time_attendance.arn}*"]
+      Resource = [
+        "${aws_dynamodb_table.users.arn}*",
+        "${aws_dynamodb_table.time_attendance.arn}*",
+        "${aws_dynamodb_table.settings.arn}*",
+      ]
     }]
   })
 }

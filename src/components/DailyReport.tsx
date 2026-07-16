@@ -7,6 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import DatePicker from "@/components/DatePicker";
 import AttendanceTable from "@/components/AttendanceTable";
 import DownloadCSVButton from "@/components/DownloadCsvButton";
+import { CheckCircle2, ClockAlert, Timer } from "lucide-react";
+import { DEFAULT_SCHOOL_SCHEDULE, scheduleGroupForUserType, SchoolSchedule } from "@/types/schedule";
 
 type BaseUser = {
     userId: string;
@@ -34,6 +36,7 @@ export default function DailyReport() {
     const [selectedDate, setSelectedDate] = useState<Date>(new Date());
     const [query, setQuery] = useState("");
     const [loading, setLoading] = useState(false);
+    const [schedule, setSchedule] = useState<SchoolSchedule>(DEFAULT_SCHOOL_SCHEDULE);
     const [userTypeFilter, setUserTypeFilter] = useState(() => {
         if (typeof window !== "undefined") {
             const savedType = localStorage.getItem(LOCAL_TYPE_STORAGE_KEY);
@@ -61,9 +64,15 @@ export default function DailyReport() {
             setLoading(true);
             try {
                 const formattedDate = format(selectedDate, 'yyyy-MM-dd');
-                const res = await fetch(`/api/reports/attendance?date=${formattedDate}&userType=${userTypeFilter}`);
-                const data = await res.json();
+                const [attendanceResponse, scheduleResponse] = await Promise.all([
+                    fetch(`/api/reports/attendance?date=${formattedDate}&userType=${userTypeFilter}`),
+                    fetch("/api/settings/schedule"),
+                ]);
+                const data = await attendanceResponse.json();
+                if (!attendanceResponse.ok) throw new Error(data.error ?? "Failed to load attendance");
                 setRecords(data);
+
+                if (scheduleResponse.ok) setSchedule(await scheduleResponse.json());
             } catch (err) {
                 console.error('Error fetching attendance:', err);
             } finally {
@@ -91,8 +100,52 @@ export default function DailyReport() {
                 new Date(b.dateTimeStamp).getTime()
         );
 
+    const dayWindow = schedule[scheduleGroupForUserType(userTypeFilter)];
+    const firstArrivalByUser = new Map<string, string>();
+    records
+        .filter((record) => record.state.toLowerCase() === "in" && record.user?.userId)
+        .sort((a, b) => a.dateTimeStamp.localeCompare(b.dateTimeStamp))
+        .forEach((record) => {
+            const userId = record.user!.userId;
+            if (!firstArrivalByUser.has(userId)) {
+                firstArrivalByUser.set(
+                    userId,
+                    new Intl.DateTimeFormat("en-CA", {
+                        timeZone: "America/Chicago",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hourCycle: "h23",
+                    }).format(new Date(record.dateTimeStamp))
+                );
+            }
+        });
+    const onTimeCount = [...firstArrivalByUser.values()].filter((time) => time <= dayWindow.startTime).length;
+    const lateCount = firstArrivalByUser.size - onTimeCount;
+    const lastDepartureByUser = new Map<string, string>();
+    records
+        .filter((record) => record.state.toLowerCase() === "out" && record.user?.userId)
+        .sort((a, b) => a.dateTimeStamp.localeCompare(b.dateTimeStamp))
+        .forEach((record) => {
+            lastDepartureByUser.set(
+                record.user!.userId,
+                new Intl.DateTimeFormat("en-CA", {
+                    timeZone: "America/Chicago",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    hourCycle: "h23",
+                }).format(new Date(record.dateTimeStamp))
+            );
+        });
+    const onTimeDepartureCount = [...lastDepartureByUser.values()].filter((time) => time >= dayWindow.endTime).length;
+
     return (
         <div className="p-6 space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <MetricChip icon={<CheckCircle2 className="h-5 w-5" />} label="On-time arrivals" value={onTimeCount} tone="emerald" />
+                <MetricChip icon={<ClockAlert className="h-5 w-5" />} label="Late arrivals" value={lateCount} tone="amber" />
+                <MetricChip icon={<CheckCircle2 className="h-5 w-5" />} label="On-time departures" value={onTimeDepartureCount} tone="emerald" />
+                <MetricChip icon={<Timer className="h-5 w-5" />} label="Expected day" value={`${dayWindow.startTime}–${dayWindow.endTime}`} tone="slate" />
+            </div>
             <div className="flex flex-wrap gap-3 items-center">
 
             </div>
@@ -190,6 +243,28 @@ export default function DailyReport() {
                         },
                     ]}
                 />
+            </div>
+        </div>
+    );
+}
+
+function MetricChip({ icon, label, value, tone }: {
+    icon: React.ReactNode;
+    label: string;
+    value: string | number;
+    tone: "emerald" | "amber" | "slate";
+}) {
+    const tones = {
+        emerald: "border-emerald-200 bg-emerald-50 text-emerald-800",
+        amber: "border-amber-200 bg-amber-50 text-amber-800",
+        slate: "border-slate-200 bg-slate-50 text-slate-700",
+    };
+    return (
+        <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3 ${tones[tone]}`}>
+            {icon}
+            <div>
+                <p className="text-xs font-black uppercase tracking-wider opacity-75">{label}</p>
+                <p className="text-xl font-black">{value}</p>
             </div>
         </div>
     );
