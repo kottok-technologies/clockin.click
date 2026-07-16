@@ -23,6 +23,21 @@ variable "repository_branch" {
   default = "main"
 }
 
+variable "marketing_repository_url" {
+  type    = string
+  default = "https://github.com/kottok-technologies/clockin.click-marketing"
+}
+
+variable "marketing_repository_branch" {
+  type    = string
+  default = "main"
+}
+
+variable "marketing_domain_name" {
+  type    = string
+  default = "clockin.click"
+}
+
 variable "github_access_token" {
   type      = string
   sensitive = true
