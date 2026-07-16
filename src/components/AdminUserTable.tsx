@@ -365,14 +365,14 @@ export default function AdminUserTable({ users }: Props) {
                     onClick={handleAddUser}
                     className="px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700"
                 >
-                    Add New User
+                    Add person
                 </button>
                 }
 
                 <div className="relative w-64">
                     <input
                         type="text"
-                        placeholder="Search users..."
+                        placeholder="Search people..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="border border-gray-300 rounded-lg px-3 py-2 pr-9 w-full focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"

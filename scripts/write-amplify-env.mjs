@@ -7,6 +7,7 @@ const secrets = JSON.parse(readFileSync(secretFile, "utf8"));
 const runtime = {
     ...secrets,
     SCHOOL_NAME: process.env.SCHOOL_NAME,
+    NEXT_PUBLIC_SCHOOL_NAME: process.env.SCHOOL_NAME,
     NEXTAUTH_URL: `https://${process.env.SCHOOL_NAME}.clockin.click`,
 };
 

@@ -8,6 +8,7 @@ import StatusBadge from "@/components/StatusBadge";
 type ClockAction = { userId: string; status: "In" | "Out" };
 
 export default function PinEntry() {
+    const schoolName = process.env.NEXT_PUBLIC_SCHOOL_NAME || "Your school";
     const [pin, setPin] = useState("");
     const [user, setUser] = useState<KioskUser | null>(null);
     const [error, setError] = useState("");
@@ -102,6 +103,7 @@ export default function PinEntry() {
                 {!user ? (
                     <div className="grid items-center gap-8 lg:grid-cols-[1fr_25rem]">
                         <section className="hidden lg:block">
+                            <p className="mb-3 text-sm font-black uppercase tracking-[0.2em] text-emerald-800">{schoolName}</p>
                             <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white/80 px-3 py-1.5 text-sm font-bold text-emerald-800">
                                 <ShieldCheck className="h-4 w-4" /> Secure school check-in
                             </div>
@@ -118,6 +120,7 @@ export default function PinEntry() {
                                 <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
                                     <Clock3 className="h-6 w-6" />
                                 </div>
+                                <p className="mb-1 text-xs font-black uppercase tracking-[0.18em] text-emerald-700 lg:hidden">{schoolName}</p>
                                 <h1 className="text-2xl font-black text-slate-900 sm:text-3xl">Enter your PIN</h1>
                                 <p className="mt-2 text-sm text-slate-500">Use your private 4-digit family or staff PIN.</p>
                             </div>

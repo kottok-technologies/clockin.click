@@ -27,7 +27,7 @@ export default function AttendanceTable<T>({
                                                columns,
                                                data,
                                                loading = false,
-                                               emptyMessage = "No records found",
+                                               emptyMessage = "No attendance has been recorded yet.",
                                            }: AttendanceTableProps<T>) {
     return (
         <div className="overflow-x-auto border rounded-lg">
@@ -50,7 +50,7 @@ export default function AttendanceTable<T>({
                     {loading ? (
                         <TableRow>
                             <TableCell colSpan={columns.length} className="text-center py-4 text-gray-500">
-                                Loading...
+                                Gathering attendance…
                             </TableCell>
                         </TableRow>
                     ) : data.length === 0 ? (
