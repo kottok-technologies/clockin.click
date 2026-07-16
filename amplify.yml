@@ -7,8 +7,8 @@ frontend:
     build:
       commands:
         - aws secretsmanager get-secret-value --secret-id "$SECRET_NAME" --query SecretString --output text > /tmp/app-secrets.json
+        - aws s3 cp "s3://$ASSETS_BUCKET/$SCHOOL_NAME/images/logo.png" public/images/school-logo.png || true
         - node scripts/write-amplify-env.mjs /tmp/app-secrets.json
-        - aws s3 cp "s3://$ASSETS_BUCKET/$SCHOOL_NAME/images/logo.png" public/images/logo.png || true
         - npm run build
   artifacts:
     baseDirectory: .next
