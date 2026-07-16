@@ -5,6 +5,7 @@ import {
     updateUserStatus,
     logTimeClock,
 } from "@/utils/dynamo";
+import { isAllowedMockClock, isLocalKioskMockEnabled } from "@/utils/kioskMock";
 
 export async function PATCH(
     req: NextRequest,
@@ -18,6 +19,13 @@ export async function PATCH(
     }
     if (typeof pin !== "string" || !/^\d{4}$/.test(pin)) {
         return NextResponse.json({ error: "A valid PIN is required" }, { status: 401 });
+    }
+
+    if (isLocalKioskMockEnabled) {
+        if (!isAllowedMockClock(pin, id)) {
+            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        }
+        return NextResponse.json({ userId: id, status, mocked: true });
     }
 
     try {
