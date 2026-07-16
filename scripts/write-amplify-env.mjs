@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 
 const secretFile = process.argv[2];
 if (!secretFile) throw new Error("Expected the Secrets Manager JSON file path");
@@ -8,6 +8,9 @@ const runtime = {
     ...secrets,
     SCHOOL_NAME: process.env.SCHOOL_NAME,
     NEXT_PUBLIC_SCHOOL_NAME: process.env.SCHOOL_NAME,
+    ...(existsSync("public/images/school-logo.png")
+        ? { NEXT_PUBLIC_SCHOOL_LOGO: "/images/school-logo.png" }
+        : {}),
     NEXTAUTH_URL: `https://${process.env.SCHOOL_NAME}.clockin.click`,
 };
 
