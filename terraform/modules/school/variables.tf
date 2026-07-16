@@ -3,17 +3,17 @@ variable "school_id" {
   description = "Unique identifier for the school"
 }
 
-variable "docker_image" {
-  type        = string
-  description = "Full ECR Docker image URI for this school"
-}
-
 variable "project_name" {
-  type = string
+  type        = string
   description = "Identifier for the project."
 }
 
-variable "route53_zone_id" {
-  type        = string
-  description = "Route53 Hosted Zone ID to create subdomain records"
+variable "repository_url" { type = string }
+variable "repository_branch" { type = string }
+variable "github_access_token" {
+  type      = string
+  sensitive = true
 }
+variable "secret_name" { type = string }
+variable "secret_arn" { type = string }
+variable "assets_bucket" { type = string }

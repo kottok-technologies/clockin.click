@@ -1,17 +1,16 @@
 module "schools" {
-  for_each  = toset(var.schools)
-  source    = "./modules/school"
-  school_id = each.value
-  project_name = var.project_name
-  route53_zone_id = var.route53_zone_id
-  docker_image = "${var.aws_account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/${var.project_name}:${lower(each.value)}-latest"
+  for_each            = toset(var.schools)
+  source              = "./modules/school"
+  school_id           = each.value
+  project_name        = var.project_name
+  repository_url      = var.repository_url
+  repository_branch   = var.repository_branch
+  github_access_token = var.github_access_token
+  secret_name         = var.secret_name
+  secret_arn          = var.secret_arn
+  assets_bucket       = var.assets_bucket
 }
 
 output "school_service_urls" {
-  value = { for s, m in module.schools : s => m.apprunner_url }
-}
-
-module "ECR" {
-  source = "./modules/ecr"
-  project_name = var.project_name
+  value = { for s, m in module.schools : s => m.custom_domain }
 }

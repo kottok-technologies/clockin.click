@@ -1,86 +1,44 @@
-name: Deploy Multi-School Next.js App
+name: Deploy schools to Amplify
 
 on:
-  push:
+  workflow_dispatch:
 
 permissions:
   id-token: write
   contents: read
 
 jobs:
-  deploy:
-    name: Deploy with Docker
+  infrastructure:
     runs-on: ubuntu-latest
-    environment: >
-      ${{
-        github.ref == 'refs/heads/main' && 'Prod' ||
-        'Dev'
-      }}
+    environment: Prod
     env:
       AWS_REGION: us-east-1
-      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-      ECR_REPO: "clockinclick"
-      TERRAFORM_DIR: "terraform"
-      WORKSPACE: ${{ github.ref == 'refs/heads/main' && 'production' || 'testing' }}
+      TERRAFORM_DIR: terraform
+      WORKSPACE: production
       SCHOOLS: ${{ vars.SCHOOLS }}
+      TF_VAR_github_access_token: ${{ secrets.AMPLIFY_GITHUB_TOKEN }}
+      TF_VAR_secret_arn: ${{ secrets.APP_SECRETS_ARN }}
 
     steps:
-      # Step 0: Checkout repo
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      # Step 1: Configure AWS credentials
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # Step 3: Setup Terraform
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
+      - uses: hashicorp/setup-terraform@v3
 
-      # Step 4: Terraform init
-      - name: Terraform Init
+      - name: Terraform init
         run: terraform -chdir=${{ env.TERRAFORM_DIR }} init
 
-      # Step 5: Create or ensure global ECR (only once, main branch)
-      - name: Terraform Apply Global ECR
-        run: |
-          terraform -chdir=${{ env.TERRAFORM_DIR }} apply \
-            -auto-approve \
-            -target=module.ecr
+      - name: Select production workspace
+        run: terraform -chdir=${{ env.TERRAFORM_DIR }} workspace select $WORKSPACE || terraform -chdir=${{ env.TERRAFORM_DIR }} workspace new $WORKSPACE
 
-      # Step 6: Login to ECR
-      - name: Login to ECR
+      - name: Terraform plan
         run: |
-          aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
-          docker login --username AWS --password-stdin ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+          SCHOOLS_JSON=$(printf '%s' "$SCHOOLS" | jq -R 'split(",") | map(gsub("^\\s+|\\s+$"; ""))')
+          terraform -chdir=${{ env.TERRAFORM_DIR }} plan -var="schools=$SCHOOLS_JSON" -out=tfplan
 
-      # Step 7: Build & push Docker images per school
-      - name: Build and Push Docker Images (Parallel)
-        run: |
-          chmod +x scripts/build-school.sh
-          ./scripts/build-school.sh
-        env:
-          PARALLEL_LIMIT: 4
-          SCHOOLS: ${{ env.SCHOOLS }}
-
-      # Step 8: Select or create Terraform workspace
-      - name: Select Terraform workspace
-        run: |
-          terraform -chdir=${{ env.TERRAFORM_DIR }} workspace select $WORKSPACE || \
-          terraform -chdir=${{ env.TERRAFORM_DIR }} workspace new $WORKSPACE
-          echo "Using Terraform workspace: $WORKSPACE"
-
-      # Step 9: Terraform apply environment-specific infra (DynamoDB + IAM)
-
-      - name: Terraform Apply Remaining Resources
-        run: |
-          # Convert comma-separated string into a Bash array
-          IFS=',' read -ra SCHOOLS_ARRAY <<< "$SCHOOLS"
-  
-          # Generate JSON-style array for Terraform variable
-          SCHOOLS_JSON=$(printf '%s\n' "${SCHOOLS_ARRAY[@]}" | jq -R . | jq -s .)
-          
-          terraform -chdir=${{ env.TERRAFORM_DIR }} apply -auto-approve -var="schools=${SCHOOLS_JSON}" -target=module.schools
+      - name: Terraform apply
+        run: terraform -chdir=${{ env.TERRAFORM_DIR }} apply -auto-approve tfplan

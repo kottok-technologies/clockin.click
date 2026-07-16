@@ -1,4 +1,4 @@
-output "schools_apprunner_urls" {
-  value = { for school, mod in module.schools : school => mod.apprunner_url }
+output "schools_amplify_urls" {
+  value = { for school, mod in module.schools : school => mod.amplify_url }
 }
 
