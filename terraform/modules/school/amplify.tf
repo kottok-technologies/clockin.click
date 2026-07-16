@@ -31,7 +31,7 @@ resource "aws_amplify_branch" "production" {
 
 resource "aws_amplify_domain_association" "school" {
   app_id                = aws_amplify_app.app.id
-  domain_name           = "${var.school_id}.clockin.click"
+  domain_name           = "${lower(var.school_id)}.clockin.click"
   wait_for_verification = true
 
   sub_domain {
