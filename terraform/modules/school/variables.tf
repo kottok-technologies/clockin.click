@@ -10,6 +10,7 @@ variable "project_name" {
 
 variable "repository_url" { type = string }
 variable "repository_branch" { type = string }
+variable "domain_name" { type = string }
 variable "github_access_token" {
   type      = string
   sensitive = true

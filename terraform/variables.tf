@@ -23,6 +23,11 @@ variable "repository_branch" {
   default = "main"
 }
 
+variable "domain_name" {
+  type    = string
+  default = "clockin.click"
+}
+
 variable "github_access_token" {
   type      = string
   sensitive = true
