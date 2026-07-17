@@ -4,7 +4,9 @@ const isAdminRoute = (pathname: string) =>
     pathname === "/users" ||
     pathname.startsWith("/users/") ||
     pathname === "/reports" ||
-    pathname.startsWith("/reports/");
+    pathname.startsWith("/reports/") ||
+    pathname === "/settings" ||
+    pathname.startsWith("/settings/");
 
 export default withAuth({
     callbacks: {

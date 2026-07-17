@@ -4,7 +4,7 @@ import Link from "next/link";
 import LoginButton from "./LoginButton";
 import { useSession } from "next-auth/react";
 import Image from "next/image";
-import { BarChart3, Users } from "lucide-react";
+import { BarChart3, Settings, Users } from "lucide-react";
 import { useState } from "react";
 
 export default function Navbar() {
@@ -55,6 +55,9 @@ export default function Navbar() {
                         </Link>
                         <Link href="/reports" className="inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-sm font-bold hover:bg-slate-100 hover:text-slate-900">
                             <BarChart3 className="h-4 w-4" /> <span className="hidden md:inline">Reports</span>
+                        </Link>
+                        <Link href="/settings" className="inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-sm font-bold hover:bg-slate-100 hover:text-slate-900">
+                            <Settings className="h-4 w-4" /> <span className="hidden md:inline">Settings</span>
                         </Link>
                     </>
                 )}

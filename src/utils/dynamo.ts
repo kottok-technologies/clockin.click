@@ -15,11 +15,13 @@ import {
 } from "@aws-sdk/client-dynamodb";
 import { isGuardian, BaseUser, GuardianUser, RegularUser, User } from "@/types/user";
 import { TimeAttendanceRecord, RawTimeAttendanceItem} from "@/types/attendance";
+import { DEFAULT_SCHOOL_SCHEDULE, SchoolSchedule } from "@/types/schedule";
 import { enumerateMonths } from "@/utils/attendance";
 
 export const client = new DynamoDBClient({ region: process.env.AWS_REGION });
 export const USERS_TABLE = `clockinclick-${process.env.SCHOOL_NAME}-Users` || "users";
 export const TIME_ATTENDANCE_TABLE = `clockinclick-${process.env.SCHOOL_NAME}-TimeAttendance`;
+export const SETTINGS_TABLE = `clockinclick-${process.env.SCHOOL_NAME}-Settings`;
 
 
 // ---------- Helpers ----------
@@ -557,3 +559,39 @@ export function unmarshallTimeAttendance(
         clockedBy: item.ClockedBy.S ?? "",
     };
 }
+
+const SCHEDULE_SETTING_ID = "school-day-schedule";
+
+export const getSchoolSchedule = async (): Promise<SchoolSchedule> => {
+    const result = await client.send(new GetItemCommand({
+        TableName: SETTINGS_TABLE,
+        Key: { SettingId: { S: SCHEDULE_SETTING_ID } },
+    }));
+
+    if (!result.Item) return DEFAULT_SCHOOL_SCHEDULE;
+
+    return {
+        student: {
+            startTime: getString(result.Item.StudentStartTime) ?? DEFAULT_SCHOOL_SCHEDULE.student.startTime,
+            endTime: getString(result.Item.StudentEndTime) ?? DEFAULT_SCHOOL_SCHEDULE.student.endTime,
+        },
+        staff: {
+            startTime: getString(result.Item.StaffStartTime) ?? DEFAULT_SCHOOL_SCHEDULE.staff.startTime,
+            endTime: getString(result.Item.StaffEndTime) ?? DEFAULT_SCHOOL_SCHEDULE.staff.endTime,
+        },
+    };
+};
+
+export const putSchoolSchedule = async (schedule: SchoolSchedule): Promise<void> => {
+    await client.send(new PutItemCommand({
+        TableName: SETTINGS_TABLE,
+        Item: {
+            SettingId: { S: SCHEDULE_SETTING_ID },
+            StudentStartTime: { S: schedule.student.startTime },
+            StudentEndTime: { S: schedule.student.endTime },
+            StaffStartTime: { S: schedule.staff.startTime },
+            StaffEndTime: { S: schedule.staff.endTime },
+            UpdatedAt: { S: new Date().toISOString() },
+        },
+    }));
+};
