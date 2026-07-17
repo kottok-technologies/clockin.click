@@ -5,6 +5,7 @@ import { LogIn, LogOut } from "lucide-react";
 
 export default function LoginButton() {
     const { data: session } = useSession();
+    const isDemo = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 
     if (session) {
         return (
@@ -21,10 +22,10 @@ export default function LoginButton() {
     }
     return (
         <button
-            onClick={() => signIn("google")}
+            onClick={() => signIn(isDemo ? "demo" : "google")}
             className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-bold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900"
         >
-           <LogIn className="h-4 w-4" /> <span className="hidden sm:inline">Admin sign in</span>
+           <LogIn className="h-4 w-4" /> <span className="hidden sm:inline">{isDemo ? "Explore admin" : "Admin sign in"}</span>
         </button>
     );
 }

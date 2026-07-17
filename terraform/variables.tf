@@ -13,6 +13,12 @@ variable "schools" {
   default = ["test"]
 }
 
+variable "demo_school_name" {
+  type        = string
+  description = "Public demo tenant that is always provisioned alongside customer schools."
+  default     = "Demo"
+}
+
 variable "repository_url" {
   type    = string
   default = "https://github.com/kottok-technologies/clockin.click"

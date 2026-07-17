@@ -1,5 +1,9 @@
+locals {
+  school_ids = distinct(concat(var.schools, [var.demo_school_name]))
+}
+
 module "schools" {
-  for_each            = toset(var.schools)
+  for_each            = toset(local.school_ids)
   source              = "./modules/school"
   school_id           = each.value
   project_name        = var.project_name

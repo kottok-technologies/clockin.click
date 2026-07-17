@@ -1,6 +1,9 @@
 import NextAuth, {AuthOptions} from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
+import CredentialsProvider from "next-auth/providers/credentials";
 import {getAdminLevel} from "@/utils/dynamo";
+
+const isDemo = process.env.DEMO_MODE === "true";
 
 export const authOptions: AuthOptions = {
     providers: [
@@ -8,9 +11,18 @@ export const authOptions: AuthOptions = {
             clientId: process.env.GOOGLE_CLIENT_ID!,
             clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
         }),
+        ...(isDemo ? [CredentialsProvider({
+            id: "demo",
+            name: "Demo administrator",
+            credentials: {},
+            async authorize() {
+                return { id: "demo-admin", name: "Demo Administrator", email: "demo@clockin.click" };
+            },
+        })] : []),
     ],
     callbacks: {
-        async signIn({ user }) {
+        async signIn({ user, account }) {
+            if (isDemo && account?.provider === "demo") return true;
             if (!user?.email) {
                 console.warn("Sign in failed: no email provided");
                 return false; // must return boolean, not null
@@ -26,8 +38,16 @@ export const authOptions: AuthOptions = {
 
             return true; // allow login
         },
-        async session({ session }) {
-            // optional: add isAdmin flag to session
+        async jwt({ token, account }) {
+            if (isDemo && account?.provider === "demo") token.demoAdmin = true;
+            return token;
+        },
+        async session({ session, token }) {
+            if (isDemo && token.demoAdmin) {
+                session.user.isAdmin = true;
+                session.user.adminLevel = "edit";
+                return session;
+            }
             session.user.isAdmin = true;
             session.user.adminLevel = session.user.email ? await getAdminLevel(session.user.email) : null;
             return session;
