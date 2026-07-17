@@ -1,0 +1,21 @@
+name: Reset demo school
+
+on:
+  schedule:
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    environment: Prod
+    steps:
+      - name: Restore demo data
+        env:
+          DEMO_RESET_TOKEN: ${{ secrets.DEMO_RESET_TOKEN }}
+        run: |
+          curl --fail --show-error --silent \
+            --retry 3 \
+            --request POST \
+            --header "Authorization: Bearer ${DEMO_RESET_TOKEN}" \
+            https://demo.clockin.click/api/demo/reset

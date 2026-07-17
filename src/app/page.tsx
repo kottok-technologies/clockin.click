@@ -9,6 +9,7 @@ type ClockAction = { userId: string; status: "In" | "Out" };
 
 export default function PinEntry() {
     const schoolName = process.env.NEXT_PUBLIC_SCHOOL_NAME || "Your school";
+    const isDemo = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
     const [pin, setPin] = useState("");
     const [user, setUser] = useState<KioskUser | null>(null);
     const [error, setError] = useState("");
@@ -100,6 +101,12 @@ export default function PinEntry() {
     return (
         <div className="kiosk-shell min-h-[calc(100vh-5rem)] px-4 py-8 sm:px-6 sm:py-12">
             <div className="mx-auto max-w-3xl">
+                {isDemo && !user && (
+                    <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-950 shadow-sm">
+                        <p className="font-black">Interactive demo school</p>
+                        <p className="mt-1">Try guardian PIN <strong>2468</strong> or staff PIN <strong>1357</strong>. Use <strong>Explore admin</strong> above for reports, people, and settings. Demo data resets nightly.</p>
+                    </div>
+                )}
                 {!user ? (
                     <div className="grid items-center gap-8 lg:grid-cols-[1fr_25rem]">
                         <section className="hidden lg:block">
