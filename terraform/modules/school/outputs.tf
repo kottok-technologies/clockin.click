@@ -11,5 +11,5 @@ output "amplify_url" {
 }
 
 output "custom_domain" {
-  value = "https://${var.school_id}.clockin.click"
+  value = "https://${lower(var.school_id)}.${var.domain_name}"
 }

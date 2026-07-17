@@ -5,6 +5,7 @@ module "schools" {
   project_name        = var.project_name
   repository_url      = var.repository_url
   repository_branch   = var.repository_branch
+  domain_name         = var.domain_name
   github_access_token = var.github_access_token
   secret_name         = var.secret_name
   secret_arn          = var.secret_arn

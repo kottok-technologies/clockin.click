@@ -31,11 +31,11 @@ resource "aws_amplify_branch" "production" {
 
 resource "aws_amplify_domain_association" "school" {
   app_id                = aws_amplify_app.app.id
-  domain_name           = "${lower(var.school_id)}.clockin.click"
+  domain_name           = var.domain_name
   wait_for_verification = true
 
   sub_domain {
     branch_name = aws_amplify_branch.production.branch_name
-    prefix      = ""
+    prefix      = lower(var.school_id)
   }
 }
