@@ -5,9 +5,10 @@ export interface BaseUser {
     roles: string[];
     status?: string;
     pin: string;
-    email?: string;
+    email?: string | null;
     adminLevel?: string | null;
     lastClockTransaction?: string;
+    archived?: boolean;
 }
 
 // Guardian user (must have learners)

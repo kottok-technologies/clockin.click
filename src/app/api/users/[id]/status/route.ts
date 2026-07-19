@@ -30,7 +30,7 @@ export async function PATCH(
 
     try {
         const [actor, target] = await Promise.all([getUserByPin(pin), getUserById(id)]);
-        if (!actor || !target) {
+        if (!actor || !target || actor.archived || target.archived) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 

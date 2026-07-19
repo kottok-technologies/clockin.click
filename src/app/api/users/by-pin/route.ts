@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     }
 
     const user = await getUserByPin(pin);
-    if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+    if (!user || user.archived) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
     const kioskUser: KioskUser = {
         userId: user.userId,
