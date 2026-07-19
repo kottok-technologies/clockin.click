@@ -49,7 +49,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <Navbar />
                 <main className="flex-1">{children}</main>
                 <footer className="border-t border-slate-200/70 bg-white px-4 py-4 text-center text-xs font-bold tracking-wide text-slate-400">
-                    Powered by <span className="text-slate-600">Clockin<span className="text-emerald-700">.Click</span></span>
+                    Powered by <a href="https://www.clockin.click" className="text-slate-600 transition hover:text-emerald-700 hover:underline">Clockin<span className="text-emerald-700">.Click</span></a>
                 </footer>
             </div>
         </Providers>

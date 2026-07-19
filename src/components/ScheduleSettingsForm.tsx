@@ -4,6 +4,16 @@ import { useEffect, useState } from "react";
 import { Clock3, Save } from "lucide-react";
 import { DEFAULT_SCHOOL_SCHEDULE, SchoolSchedule } from "@/types/schedule";
 
+const TIME_ZONES = [
+    ["America/New_York", "Eastern Time"],
+    ["America/Chicago", "Central Time"],
+    ["America/Denver", "Mountain Time"],
+    ["America/Phoenix", "Arizona Time"],
+    ["America/Los_Angeles", "Pacific Time"],
+    ["America/Anchorage", "Alaska Time"],
+    ["Pacific/Honolulu", "Hawaii Time"],
+] as const;
+
 export default function ScheduleSettingsForm() {
     const [schedule, setSchedule] = useState<SchoolSchedule>(DEFAULT_SCHOOL_SCHEDULE);
     const [loading, setLoading] = useState(true);
@@ -22,7 +32,7 @@ export default function ScheduleSettingsForm() {
             .finally(() => setLoading(false));
     }, []);
 
-    const setTime = (group: keyof SchoolSchedule, field: "startTime" | "endTime", value: string) => {
+    const setTime = (group: "student" | "staff", field: "startTime" | "endTime", value: string) => {
         setSchedule((current) => ({
             ...current,
             [group]: { ...current[group], [field]: value },
@@ -45,7 +55,7 @@ export default function ScheduleSettingsForm() {
             const body = await response.json();
             if (!response.ok) throw new Error(body.error ?? "Failed to save schedule");
             setSchedule(body);
-            setMessage("School-day schedule saved.");
+            setMessage("School settings saved.");
         } catch (reason) {
             setError(reason instanceof Error ? reason.message : "Failed to save schedule");
         } finally {
@@ -64,12 +74,19 @@ export default function ScheduleSettingsForm() {
                     </span>
                     <div>
                         <h2 className="text-xl font-black text-slate-900">Daily attendance windows</h2>
-                        <p className="text-sm text-slate-500">Times use the school timezone (America/Chicago).</p>
+                        <p className="text-sm text-slate-500">Set the local time used by attendance and reports.</p>
                     </div>
                 </div>
             </div>
 
             <div className="space-y-6 p-6">
+                <label className="block rounded-2xl border border-slate-200 p-5 text-sm font-bold text-slate-700">
+                    School time zone
+                    <select value={schedule.timeZone} onChange={(event) => setSchedule((current) => ({ ...current, timeZone: event.target.value }))} className="mt-2 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-base font-normal">
+                        {TIME_ZONES.map(([value, label]) => <option key={value} value={value}>{label} ({value})</option>)}
+                    </select>
+                    <span className="mt-2 block font-normal text-slate-500">This controls report dates, displayed punch times, and on-time calculations. Existing punches remain stored in UTC.</span>
+                </label>
                 {(["student", "staff"] as const).map((group) => (
                     <fieldset key={group} className="rounded-2xl border border-slate-200 p-5">
                         <legend className="px-2 text-sm font-black uppercase tracking-wider text-slate-600">

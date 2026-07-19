@@ -87,6 +87,7 @@ export const resetDemoData = async () => {
     await putSchoolSchedule({
         student: { startTime: "08:30", endTime: "15:00" },
         staff: { startTime: "08:00", endTime: "16:00" },
+        timeZone: "America/Chicago",
     });
 
     const punches = demoDays().flatMap((day, index) => [

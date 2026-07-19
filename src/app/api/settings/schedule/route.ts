@@ -5,10 +5,20 @@ import type { SchoolSchedule } from "@/types/schedule";
 
 const TIME_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 
+const isValidTimeZone = (timeZone: string) => {
+    try {
+        new Intl.DateTimeFormat("en-US", { timeZone }).format();
+        return true;
+    } catch {
+        return false;
+    }
+};
+
 const isValidSchedule = (value: unknown): value is SchoolSchedule => {
     if (!value || typeof value !== "object") return false;
     const schedule = value as SchoolSchedule;
-    return [schedule.student, schedule.staff].every((window) =>
+    return typeof schedule.timeZone === "string" && isValidTimeZone(schedule.timeZone) &&
+    [schedule.student, schedule.staff].every((window) =>
         Boolean(window) &&
         TIME_PATTERN.test(window.startTime) &&
         TIME_PATTERN.test(window.endTime) &&
@@ -36,7 +46,7 @@ export async function PUT(request: Request) {
         const schedule: unknown = await request.json();
         if (!isValidSchedule(schedule)) {
             return NextResponse.json(
-                { error: "Each start and end time must be valid, and end must be after start." },
+                { error: "Choose a valid time zone and ensure each end time is after its start time." },
                 { status: 400 }
             );
         }

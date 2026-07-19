@@ -12,17 +12,17 @@ import type { User } from "@/types/user";
 export const TIME_ZONE = "America/Chicago";
 
 /** Local (school timezone) calendar day of an ISO instant, as yyyy-MM-dd. */
-export const localDayKey = (isoTimestamp: string): string =>
-    format(toZonedTime(parseISO(isoTimestamp), TIME_ZONE), "yyyy-MM-dd");
+export const localDayKey = (isoTimestamp: string, timeZone = TIME_ZONE): string =>
+    format(toZonedTime(parseISO(isoTimestamp), timeZone), "yyyy-MM-dd");
 
 /** Local wall-clock time of an ISO instant, as HH:mm. */
-export const localTime = (isoTimestamp: string): string =>
-    format(toZonedTime(parseISO(isoTimestamp), TIME_ZONE), "HH:mm");
+export const localTime = (isoTimestamp: string, timeZone = TIME_ZONE): string =>
+    format(toZonedTime(parseISO(isoTimestamp), timeZone), "HH:mm");
 
 /** UTC instants bounding a local-time date range, inclusive of the whole end day. */
-export const toUtcRange = (startDate: string, endDate: string) => ({
-    start: fromZonedTime(`${startDate}T00:00:00`, TIME_ZONE).toISOString(),
-    end: fromZonedTime(`${endDate}T23:59:59.999`, TIME_ZONE).toISOString(),
+export const toUtcRange = (startDate: string, endDate: string, timeZone = TIME_ZONE) => ({
+    start: fromZonedTime(`${startDate}T00:00:00`, timeZone).toISOString(),
+    end: fromZonedTime(`${endDate}T23:59:59.999`, timeZone).toISOString(),
 });
 
 /**
@@ -82,7 +82,7 @@ export const enumeratePeriods = (
  * incomplete: we never invent an end time, so totals stay defensible and the
  * bad data stays visible in the report.
  */
-export const buildDayStat = (date: string, dayRecords: TimeAttendanceRecord[]): DayStat => {
+export const buildDayStat = (date: string, dayRecords: TimeAttendanceRecord[], timeZone = TIME_ZONE): DayStat => {
     const sorted = [...dayRecords].sort((a, b) =>
         a.dateTimeStamp.localeCompare(b.dateTimeStamp)
     );
@@ -99,11 +99,11 @@ export const buildDayStat = (date: string, dayRecords: TimeAttendanceRecord[]): 
         const instant = parseISO(record.dateTimeStamp).getTime();
 
         if (state === "in") {
-            inTimes.push(localTime(record.dateTimeStamp));
+            inTimes.push(localTime(record.dateTimeStamp, timeZone));
             if (openedAt !== null) incomplete = true; // IN while already clocked in
             openedAt = instant;
         } else if (state === "out") {
-            outTimes.push(localTime(record.dateTimeStamp));
+            outTimes.push(localTime(record.dateTimeStamp, timeZone));
             if (openedAt === null) {
                 incomplete = true; // OUT with no matching IN
             } else {
@@ -127,12 +127,13 @@ export const buildDayStat = (date: string, dayRecords: TimeAttendanceRecord[]): 
 
 /** Group records by userId, then by local day, into day stats. */
 export const buildDayStatsByUser = (
-    records: TimeAttendanceRecord[]
+    records: TimeAttendanceRecord[],
+    timeZone = TIME_ZONE
 ): Map<string, Map<string, DayStat>> => {
     const byUserDay = new Map<string, Map<string, TimeAttendanceRecord[]>>();
 
     for (const record of records) {
-        const day = localDayKey(record.dateTimeStamp);
+        const day = localDayKey(record.dateTimeStamp, timeZone);
         const days = byUserDay.get(record.userId) ?? new Map();
         days.set(day, [...(days.get(day) ?? []), record]);
         byUserDay.set(record.userId, days);
@@ -142,7 +143,7 @@ export const buildDayStatsByUser = (
     for (const [userId, days] of byUserDay) {
         const userStats = new Map<string, DayStat>();
         for (const [day, dayRecords] of days) {
-            userStats.set(day, buildDayStat(day, dayRecords));
+            userStats.set(day, buildDayStat(day, dayRecords, timeZone));
         }
         stats.set(userId, userStats);
     }
@@ -155,8 +156,8 @@ export const buildDayStatsByUser = (
  * attendance rates so closures and holidays fall out on their own, with no
  * school calendar to configure.
  */
-export const attendedDays = (records: TimeAttendanceRecord[]): string[] =>
-    [...new Set(records.map((r) => localDayKey(r.dateTimeStamp)))].sort();
+export const attendedDays = (records: TimeAttendanceRecord[], timeZone = TIME_ZONE): string[] =>
+    [...new Set(records.map((r) => localDayKey(r.dateTimeStamp, timeZone)))].sort();
 
 const punchDetail = (stat: DayStat): string => {
     const times = [
@@ -193,9 +194,10 @@ export const buildSummaryRows = (
     records: TimeAttendanceRecord[],
     periods: string[],
     granularity: Granularity,
-    requestedRoles: string[]
+    requestedRoles: string[],
+    timeZone = TIME_ZONE
 ): SummaryRow[] => {
-    const statsByUser = buildDayStatsByUser(records);
+    const statsByUser = buildDayStatsByUser(records, timeZone);
 
     return users.map((user) => {
         const dayStats = statsByUser.get(user.userId) ?? new Map<string, DayStat>();

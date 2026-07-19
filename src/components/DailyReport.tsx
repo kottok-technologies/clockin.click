@@ -116,7 +116,7 @@ export default function DailyReport() {
                 firstArrivalByUser.set(
                     userId,
                     new Intl.DateTimeFormat("en-CA", {
-                        timeZone: "America/Chicago",
+                        timeZone: schedule.timeZone,
                         hour: "2-digit",
                         minute: "2-digit",
                         hourCycle: "h23",
@@ -134,7 +134,7 @@ export default function DailyReport() {
             lastDepartureByUser.set(
                 record.user!.userId,
                 new Intl.DateTimeFormat("en-CA", {
-                    timeZone: "America/Chicago",
+                    timeZone: schedule.timeZone,
                     hour: "2-digit",
                     minute: "2-digit",
                     hourCycle: "h23",

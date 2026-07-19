@@ -14,7 +14,7 @@ import AttendanceTable, { Column } from "@/components/AttendanceTable";
 import { cn } from "@/lib/utils";
 import DownloadCSVButton from "@/components/DownloadCsvButton";
 import {fromZonedTime, toZonedTime} from "date-fns-tz";
-import { TIME_ZONE } from "@/utils/attendance";
+import { DEFAULT_SCHOOL_SCHEDULE } from "@/types/schedule";
 import { ReportError, ReportMetric, ReportToolbar } from "@/components/ReportChrome";
 
 type BaseUser = {
@@ -47,6 +47,7 @@ export default function WeeklyReport() {
     const [users, setUsers] = useState<BaseUser[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [timeZone, setTimeZone] = useState(DEFAULT_SCHOOL_SCHEDULE.timeZone);
 
     // Memoize weekStart and weekEnd to avoid rerender loops
     const weekStart = useMemo(() => startOfWeek(selectedDate, { weekStartsOn: 0 }), [selectedDate]);
@@ -88,6 +89,15 @@ export default function WeeklyReport() {
         })();
     }, [reportedRoles]);
 
+    useEffect(() => {
+        fetch("/api/settings/schedule")
+            .then(async (response) => {
+                const data = await response.json();
+                if (response.ok && data.timeZone) setTimeZone(data.timeZone);
+            })
+            .catch((reason) => console.error("Error fetching school time zone:", reason));
+    }, []);
+
     // Fetch attendance when week changes
     useEffect(() => {
         const fetchRecords = async () => {
@@ -122,23 +132,23 @@ export default function WeeklyReport() {
         return users.map((user) => {
             const days: UserDayData[] = daysOfWeek.map((day) => {
                 // Ensure `day` is anchored to CST midnight
-                const dayCST = toZonedTime(fromZonedTime(day, TIME_ZONE), TIME_ZONE);
+                const schoolDay = toZonedTime(fromZonedTime(day, timeZone), timeZone);
 
                 const dayRecords = records.filter((r) => {
-                    const recordLocal = toZonedTime(parseISO(r.dateTimeStamp), TIME_ZONE);
-                    return r.userId === user.userId && isSameDay(recordLocal, dayCST);
+                    const recordLocal = toZonedTime(parseISO(r.dateTimeStamp), timeZone);
+                    return r.userId === user.userId && isSameDay(recordLocal, schoolDay);
                 });
 
                 const inTimes = dayRecords
                     .filter((r) => r.state.toLowerCase() === "in")
                     .map((r) =>
-                        format(toZonedTime(parseISO(r.dateTimeStamp), TIME_ZONE), "HH:mm")
+                        format(toZonedTime(parseISO(r.dateTimeStamp), timeZone), "HH:mm")
                     );
 
                 const outTimes = dayRecords
                     .filter((r) => r.state.toLowerCase() === "out")
                     .map((r) =>
-                        format(toZonedTime(parseISO(r.dateTimeStamp), TIME_ZONE), "HH:mm")
+                        format(toZonedTime(parseISO(r.dateTimeStamp), timeZone), "HH:mm")
                     );
 
                 const status =
@@ -160,7 +170,7 @@ export default function WeeklyReport() {
 
             return { user, days };
         });
-    }, [users, records, daysOfWeek]);
+    }, [users, records, daysOfWeek, timeZone]);
     // Columns
     const columns = useMemo<Column<BaseUser>[]>(() => {
         const today = new Date();
