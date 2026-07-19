@@ -3,6 +3,7 @@ import {
     queryAttendanceRange,
     batchGetUsersByIds,
     unmarshallTimeAttendance,
+    getSchoolSchedule,
 } from "@/utils/dynamo";
 import { toUtcRange } from "@/utils/attendance";
 import { requireSession } from "@/utils/apiAuth";
@@ -29,7 +30,8 @@ export async function GET(req: Request) {
             );
         }
 
-        const { start, end } = toUtcRange(startDate, endDate);
+        const { timeZone } = await getSchoolSchedule();
+        const { start, end } = toUtcRange(startDate, endDate, timeZone);
 
         // --- Parse user types (can be comma-separated) ---
         const userTypes = userTypeParam

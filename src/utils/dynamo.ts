@@ -593,6 +593,7 @@ export const getSchoolSchedule = async (): Promise<SchoolSchedule> => {
             startTime: getString(result.Item.StaffStartTime) ?? DEFAULT_SCHOOL_SCHEDULE.staff.startTime,
             endTime: getString(result.Item.StaffEndTime) ?? DEFAULT_SCHOOL_SCHEDULE.staff.endTime,
         },
+        timeZone: getString(result.Item.TimeZone) ?? DEFAULT_SCHOOL_SCHEDULE.timeZone,
     };
 };
 
@@ -605,6 +606,7 @@ export const putSchoolSchedule = async (schedule: SchoolSchedule): Promise<void>
             StudentEndTime: { S: schedule.student.endTime },
             StaffStartTime: { S: schedule.staff.startTime },
             StaffEndTime: { S: schedule.staff.endTime },
+            TimeZone: { S: schedule.timeZone },
             UpdatedAt: { S: new Date().toISOString() },
         },
     }));

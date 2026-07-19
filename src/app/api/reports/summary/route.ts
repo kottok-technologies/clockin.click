@@ -3,6 +3,7 @@ import {
     queryAttendanceRange,
     unmarshallTimeAttendance,
     getUsersByRoles,
+    getSchoolSchedule,
 } from "@/utils/dynamo";
 import {
     toUtcRange,
@@ -67,7 +68,8 @@ export async function GET(req: Request) {
             );
         }
 
-        const { start, end } = toUtcRange(startDate, endDate);
+        const { timeZone } = await getSchoolSchedule();
+        const { start, end } = toUtcRange(startDate, endDate, timeZone);
 
         const [items, users] = await Promise.all([
             queryAttendanceRange(userTypes, start, end),
@@ -78,11 +80,11 @@ export async function GET(req: Request) {
         // fall outside the requested range once resolved to the school timezone.
         const periods = enumeratePeriods(startDate, endDate, granularity);
         const records = items.map(unmarshallTimeAttendance).filter((r) => {
-            const day = localDayKey(r.dateTimeStamp);
+            const day = localDayKey(r.dateTimeStamp, timeZone);
             return day >= startDate && day <= endDate;
         });
 
-        const rows = buildSummaryRows(users, records, periods, granularity, userTypes).sort(
+        const rows = buildSummaryRows(users, records, periods, granularity, userTypes, timeZone).sort(
             (a, b) =>
                 a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName)
         );
@@ -92,7 +94,7 @@ export async function GET(req: Request) {
             start: startDate,
             end: endDate,
             periods,
-            schoolDays: attendedDays(records),
+            schoolDays: attendedDays(records, timeZone),
             rows,
         };
 
