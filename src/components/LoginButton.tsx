@@ -12,7 +12,7 @@ export default function LoginButton() {
             <div className="flex items-center gap-2">
                 <span className="hidden text-sm font-bold text-slate-600 lg:inline">{session.user?.name}</span>
                 <button
-                    onClick={() => signOut()}
+                    onClick={() => signOut({ callbackUrl: "/" })}
                     className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-bold text-slate-700 transition hover:bg-slate-100"
                 >
                     <LogOut className="h-4 w-4" /> <span className="hidden sm:inline">Sign out</span>

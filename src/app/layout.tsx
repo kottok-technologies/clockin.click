@@ -43,13 +43,15 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
     return (
         <html lang="en">
-        <body className={nunito.variable}>
+        <body className={`${nunito.variable} min-h-screen`}>
         <Providers>
-            <Navbar />
-            <main>{children}</main>
-            <footer className="border-t border-slate-200/70 bg-white px-4 py-4 text-center text-xs font-bold tracking-wide text-slate-400">
-                Powered by <span className="text-slate-600">Clockin<span className="text-emerald-700">.Click</span></span>
-            </footer>
+            <div className="flex min-h-screen flex-col">
+                <Navbar />
+                <main className="flex-1">{children}</main>
+                <footer className="border-t border-slate-200/70 bg-white px-4 py-4 text-center text-xs font-bold tracking-wide text-slate-400">
+                    Powered by <span className="text-slate-600">Clockin<span className="text-emerald-700">.Click</span></span>
+                </footer>
+            </div>
         </Providers>
         </body>
         </html>
