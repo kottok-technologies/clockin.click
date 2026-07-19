@@ -28,6 +28,9 @@ export const SETTINGS_TABLE = `clockinclick-${process.env.SCHOOL_NAME}-Settings`
 const getString = (val?: AttributeValue): string | undefined =>
     val && "S" in val ? val.S : undefined;
 
+const getBoolean = (val?: AttributeValue): boolean | undefined =>
+    val && "BOOL" in val ? val.BOOL : undefined;
+
 const getStringList = (list?: AttributeValue[]): string[] =>
     list?.map((v) => v.S).filter((v): v is string => !!v) || [];
 
@@ -69,6 +72,7 @@ export const unmarshallUser = async (
             lastClockTransaction: getString(item.LastClockTransaction),
             learners,
             adminLevel: getString(item.AdminLevel),
+            archived: getBoolean(item.Archived) ?? false,
         };
 
         return guardian;
@@ -84,6 +88,7 @@ export const unmarshallUser = async (
         pin: getString(item.Pin) ?? "",
         lastClockTransaction: getString(item.LastClockTransaction),
         adminLevel: getString(item.AdminLevel),
+        archived: getBoolean(item.Archived) ?? false,
     };
 
     return regular;
@@ -113,6 +118,8 @@ export const marshallUser = (user: User): Record<string, AttributeValue> => {
         item.AdminLevel = { S: user.adminLevel };
     }
 
+    if (user.archived) item.Archived = { BOOL: true };
+
     return item;
 };
 
@@ -133,6 +140,7 @@ export const marshallUserUpdate = (
         roles: "Roles",
         learners: "Learners",
         adminLevel: "AdminLevel",
+        archived: "Archived",
     };
 
     const setParts: string[] = [];
@@ -180,6 +188,10 @@ export const marshallUserUpdate = (
                 }
                 break;
             }
+            case "archived": {
+                attrVal = { BOOL: Boolean(val) };
+                break;
+            }
             default: {
                 // default to string
                 attrVal = { S: String(val as unknown) };
@@ -205,6 +217,7 @@ export const marshallUserUpdate = (
         handleField("learners", updates.learners);
     }
     handleField("adminLevel", updates.adminLevel);
+    handleField("archived", updates.archived);
 
     let updateExpression = "";
     if (setParts.length) updateExpression += "SET " + setParts.join(", ");
@@ -349,6 +362,7 @@ export const getAdminLevel = async (email: string): Promise<string | null> => {
         if (!result.Items || result.Items.length === 0) return null;
 
         const user = await unmarshallUser(result.Items[0]);
+        if (user.archived) return null;
         return user.roles.includes("administrator")
             ? user.adminLevel === "edit"
                 ? "edit"

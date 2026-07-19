@@ -1,740 +1,293 @@
 "use client";
 
-import {useState, useEffect, useMemo, useRef, RefObject, useCallback} from "react";
-import {RegularUser, User} from "@/types/user";
-import {
-    formatFullName,
-    formatRoles,
-    formatLearners,
-    formatAdminLevel,
-} from "@/utils/formatters";
-import Dropdown from "@/components/Dropdown";
-import Select, {MultiValue} from "react-select";
-import {Transition} from "@headlessui/react"
-import { FaEdit, FaTrash } from "react-icons/fa";
-import {Spinner} from "@/components/Spinner";
+import { FormEvent, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
+import {
+    Archive,
+    Check,
+    KeyRound,
+    Pencil,
+    Plus,
+    RotateCcw,
+    Search,
+    ShieldCheck,
+    UserRound,
+    UsersRound,
+    X,
+} from "lucide-react";
+import { User } from "@/types/user";
+import { formatFullName } from "@/utils/formatters";
+import { ADMIN_LEVELS, USER_ROLES } from "@/utils/userValidation";
 
 interface Props {
     users: User[];
 }
 
-interface Toast {
-    id: number;
-    type: "success" | "error";
-    message: string;
-}
+type View = "all" | "learners" | "families" | "staff" | "administrators" | "archived";
+
+const views: Array<{ id: View; label: string }> = [
+    { id: "all", label: "Everyone" },
+    { id: "learners", label: "Students" },
+    { id: "families", label: "Families" },
+    { id: "staff", label: "Staff & volunteers" },
+    { id: "administrators", label: "Administrators" },
+    { id: "archived", label: "Archived" },
+];
+
+const roleLabels: Record<string, string> = {
+    learner: "Student",
+    guardian: "Family",
+    staff: "Staff",
+    volunteer: "Volunteer",
+    administrator: "Administrator",
+};
+
+const emptyUser = (): User => ({
+    userId: crypto.randomUUID(),
+    firstName: "",
+    lastName: "",
+    email: "",
+    pin: "",
+    roles: ["learner"],
+    adminLevel: null,
+    archived: false,
+});
+
+const matchesView = (user: User, view: View) => {
+    if (view === "archived") return Boolean(user.archived);
+    if (user.archived) return false;
+    if (view === "all") return true;
+    if (view === "learners") return user.roles.includes("learner");
+    if (view === "families") return user.roles.includes("guardian");
+    if (view === "staff") return user.roles.some((role) => role === "staff" || role === "volunteer");
+    return user.roles.includes("administrator");
+};
+
+const generatePin = () => String(Math.floor(1000 + Math.random() * 9000));
 
 export default function AdminUserTable({ users }: Props) {
-    const [selectedUser, setSelectedUser] = useState<User | null>(null);
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [toasts, setToasts] = useState<Toast[]>([]);
-    const [allUsers, setAllUsers] = useState<User[]>([]);
-    const [roleFilter, setRoleFilter] = useState<Record<string, boolean>>({});
-    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-    const [firstName, setFirstName] = useState("");
-    const [lastName, setLastName] = useState("");
-    const [email, setEmail] = useState("");
-    const [pin, setPin] = useState("");
-    const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
-    const [selectedAdminLevel, setSelectedAdminLevel] = useState<string | null>(null);
-    const [selectedLearners, setSelectedLearners] = useState<string[]>([]);
-    const [isNewUser, setIsNewUser] = useState(false);
-    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-    const [userToDelete, setUserToDelete] = useState<User | null>(null);
-    const [isSaving, setIsSaving] = useState(false);
-    const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" }>({key: "name", direction: "asc"});
-    const [searchQuery, setSearchQuery] = useState("");
     const { data: session } = useSession();
-    const canEdit = session ? session.user.adminLevel === "edit" : false;
+    const canEdit = session?.user.adminLevel === "edit";
+    const [people, setPeople] = useState(users);
+    const [view, setView] = useState<View>("all");
+    const [query, setQuery] = useState("");
+    const [editing, setEditing] = useState<User | null>(null);
+    const [isNew, setIsNew] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [notice, setNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
+    const counts = useMemo(() => Object.fromEntries(
+        views.map(({ id }) => [id, people.filter((person) => matchesView(person, id)).length]),
+    ), [people]);
 
-    // --- Populate state when user changes ---
-    useEffect(() => {
-        if (!selectedUser) return;
-        setFirstName(selectedUser.firstName);
-        setLastName(selectedUser.lastName);
-        setEmail(selectedUser.email ?? "");
-        setPin(selectedUser.pin);
-        setSelectedAdminLevel(selectedUser.adminLevel ?? null);
-        setSelectedRoles(selectedUser.roles ?? []);
-        setSelectedLearners(selectedUser.learners?.map((l) => l.userId) ?? []);
-    }, [selectedUser]);
+    const visiblePeople = useMemo(() => {
+        const normalizedQuery = query.trim().toLowerCase();
+        return people
+            .filter((person) => matchesView(person, view))
+            .filter((person) => !normalizedQuery ||
+                formatFullName(person).toLowerCase().includes(normalizedQuery) ||
+                person.email?.toLowerCase().includes(normalizedQuery) ||
+                person.roles.some((role) => roleLabels[role]?.toLowerCase().includes(normalizedQuery)))
+            .sort((a, b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`));
+    }, [people, query, view]);
 
-    const roleFilterButtonRef = useRef<HTMLButtonElement>(null);
-
-    // Initialize users & role filter
-    useEffect(() => {
-        setAllUsers(users);
-
-        const roles: Record<string, boolean> = {};
-        users.forEach((u) => u.roles.forEach((r) => (roles[r] = true)));
-        setRoleFilter(roles);
-    }, [users]);
-
-    const handleSort = (key: string) => {
-        setSortConfig((prev) => {
-            if (prev && prev.key === key) {
-                // Toggle direction if same key is clicked
-                return { key, direction: prev.direction === "asc" ? "desc" : "asc" };
-            }
-            // Default to ascending
-            return { key, direction: "asc" };
-        });
+    const openNewPerson = () => {
+        setIsNew(true);
+        setEditing(emptyUser());
+        setNotice(null);
     };
 
-    const sortUsers = useCallback(
-        (users: User[], config: typeof sortConfig): User[] => {
-            if (!config) return users;
-
-            return [...users].sort((a, b) => {
-                let aValue: string | number = "";
-                let bValue: string | number = "";
-
-                switch (config.key) {
-                    case "name":
-                        aValue = `${a.lastName ?? ""} ${a.firstName ?? ""}`.toLowerCase();
-                        bValue = `${b.lastName ?? ""} ${b.firstName ?? ""}`.toLowerCase();
-                        break;
-                    case "email":
-                        aValue = (a.email ?? "").toLowerCase();
-                        bValue = (b.email ?? "").toLowerCase();
-                        break;
-                    case "pin":
-                        aValue = a.pin ?? "";
-                        bValue = b.pin ?? "";
-                        break;
-                    default:
-                        return 0;
-                }
-
-                if (aValue < bValue) return config.direction === "asc" ? -1 : 1;
-                if (aValue > bValue) return config.direction === "asc" ? 1 : -1;
-                return 0;
-            });
-        },
-        [] // memoize based on the current sortConfig
-    );
-
-
-    useEffect(() => {
-        if (sortConfig) {
-            setAllUsers((prev) => sortUsers(prev, sortConfig));
-        }
-    }, [users, sortConfig, sortUsers]); // Re-run when new users prop comes in
-
-    // Filter users based on selected roles
-    const filteredUsers = useMemo(() => {
-        const activeRoles = Object.entries(roleFilter)
-            .filter(([, checked]) => checked)
-            .map(([role]) => role);
-
-        let result = allUsers.filter((u) => u.roles.some((r) => activeRoles.includes(r)));
-
-        if (searchQuery.trim() !== "") {
-            const query = searchQuery.toLowerCase();
-            result = result.filter((u) =>
-                `${u.firstName} ${u.lastName}`.toLowerCase().includes(query) ||
-                (u.email?.toLowerCase() ?? "").includes(query) ||
-                (u.pin ?? "").includes(query) ||
-                u.roles.some((r) => r.toLowerCase().includes(query))
-            );
-        }
-
-        result = sortUsers(result, sortConfig);
-
-        return result;
-    }, [allUsers, roleFilter, sortConfig, searchQuery, sortUsers]);
-
-
-
-
-    const showToast = (type: Toast["type"], message: string) => {
-        const id = Date.now();
-        setToasts((prev) => [...prev, { id, type, message }]);
-        setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 3000);
+    const openPerson = (person: User) => {
+        setIsNew(false);
+        setEditing({ ...person, pin: "", learners: person.learners ? [...person.learners] : undefined } as User);
+        setNotice(null);
     };
 
-    const handleEditClick = (user: User) => {
-        setSelectedUser(user);
-        setIsNewUser(false);
-        setIsModalOpen(true);
+    const updateEditing = (updates: Partial<User>) => {
+        setEditing((current) => current ? ({ ...current, ...updates } as User) : current);
     };
 
-    const handleCloseModal = () => {
-        setSelectedUser(null);
-        setIsModalOpen(false);
+    const toggleRole = (role: string) => {
+        if (!editing) return;
+        const roles = editing.roles.includes(role)
+            ? editing.roles.filter((currentRole) => currentRole !== role)
+            : [...editing.roles, role];
+        updateEditing({
+            roles,
+            adminLevel: roles.includes("administrator") ? editing.adminLevel ?? "read-only" : null,
+            learners: roles.includes("guardian") ? editing.learners ?? [] : undefined,
+        } as Partial<User>);
     };
 
-    const handleRoleToggle = (role: string) => {
-        setRoleFilter((prev) => ({ ...prev, [role]: !prev[role] }));
+    const toggleLearner = (learner: User) => {
+        if (!editing || !editing.roles.includes("guardian")) return;
+        const learners = editing.learners ?? [];
+        const connected = learners.some(({ userId }) => userId === learner.userId);
+        updateEditing({
+            learners: connected
+                ? learners.filter(({ userId }) => userId !== learner.userId)
+                : [...learners, learner],
+        } as Partial<User>);
     };
 
-    const handleSelectAll = () => {
-        const newFilter: Record<string, boolean> = {};
-        Object.keys(roleFilter).forEach((role) => (newFilter[role] = true));
-        setRoleFilter(newFilter);
-    };
-
-    const handleDeselectAll = () => {
-        const newFilter: Record<string, boolean> = {};
-        Object.keys(roleFilter).forEach((role) => (newFilter[role] = false));
-        setRoleFilter(newFilter);
-    };
-
-    // Open modal
-    const handleDeleteClick = (user: User) => {
-        setUserToDelete(user);
-        setIsDeleteModalOpen(true);
-    };
-
-    const handleDeleteUser = async () => {
-        if (!userToDelete) return;
-
+    const savePerson = async (event: FormEvent) => {
+        event.preventDefault();
+        if (!editing) return;
+        setSaving(true);
+        setNotice(null);
         try {
-            const userId = userToDelete.userId;
-            // Delete the user
-            const res = await fetch(`/api/users/${userId}`, {
-                method: "DELETE",
-            });
-
-            if (!res.ok) throw new Error("Failed to delete user");
-
-            // Remove the user from local state
-            setAllUsers((prevUsers) => {
-                const userToDelete = prevUsers.find((u) => u.userId === userId);
-
-                if (!userToDelete) return prevUsers;
-
-                // Clean up guardian references if the deleted user is a learner
-                const updatedUsers = prevUsers.map((u) => {
-                    if (u.roles.includes("guardian") && u.learners?.length) {
-                        const newLearners = u.learners.filter(
-                            (l) => l.userId !== userId
-                        );
-                        return { ...u, learners: newLearners };
-                    }
-                    return u;
-                });
-
-                // Finally, remove the deleted user from the list
-                return updatedUsers.filter((u) => u.userId !== userId);
-            });
-
-            showToast("success", "User deleted successfully!");
-        } catch (err) {
-            console.error("Failed to delete user:", err);
-            showToast("error", "Failed to delete user. Please try again.");
-        } finally {
-            setIsDeleteModalOpen(false);
-            setUserToDelete(null);
-        }
-    };
-
-    const handleSaveUser = async (e: React.FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
-        if (!selectedUser) return;
-        setIsSaving(true);
-
-        // Determine if user is a guardian
-        const isGuardian = selectedRoles.includes("guardian");
-
-        // Build updated user object with correct type
-        const updatedUser: User = isGuardian
-            ? {
-                userId: selectedUser.userId,
-                firstName,
-                lastName,
-                email,
-                pin,
-                adminLevel: selectedAdminLevel,
-                roles: selectedRoles.includes("guardian") ? selectedRoles : [...selectedRoles, "guardian"],
-                learners: allUsers.filter((u) => selectedLearners.includes(u.userId)),
-            }
-            : {
-                userId: selectedUser.userId,
-                firstName,
-                lastName,
-                email,
-                pin,
-                adminLevel: selectedAdminLevel,
-                roles: selectedRoles,
-                // learners must be omitted for RegularUser
-            };
-
-        try {
-            const url = isNewUser ? `/api/users` : `/api/users/${selectedUser.userId}`;
-            const method = isNewUser ? "POST" : "PATCH"; // your API uses PATCH for both
-            const res = await fetch(url, {
-                method,
+            const response = await fetch(isNew ? "/api/users" : `/api/users/${editing.userId}`, {
+                method: isNew ? "POST" : "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(updatedUser),
+                body: JSON.stringify(editing),
             });
-
-            if (!res.ok) throw new Error("Failed to save user");
-
-            const data = await res.json();
-            console.log(data)
-
-            if (data.success && data.user) {
-                setAllUsers((prev) =>
-                    prev.some((u) => u.userId === data.user!.userId)
-                        ? prev.map((u) => (u.userId === data.user!.userId ? data.user! : u))
-                        : [...prev, data.user!]
-                );
-
-                showToast("success", `User ${isNewUser ? "added" : "updated"} successfully!`);
-                setIsModalOpen(false);
-                setSelectedUser(null);
-            } else {
-                showToast("error", "Failed to save user");
-            }
-        } catch (err) {
-            console.error("Error saving user:", err);
-            showToast("error", "Error saving user. Please try again.");
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error || "Unable to save this person.");
+            setPeople((current) => current.some(({ userId }) => userId === result.user.userId)
+                ? current.map((person) => person.userId === result.user.userId ? result.user : person)
+                : [...current, result.user]);
+            setEditing(null);
+            setNotice({ type: "success", text: `${formatFullName(result.user)} was ${isNew ? "added" : "updated"}.` });
+        } catch (error) {
+            setNotice({ type: "error", text: error instanceof Error ? error.message : "Unable to save this person." });
+        } finally {
+            setSaving(false);
         }
-        setIsSaving(false);
     };
 
-    const handleAddUser = () => {
-        // Decide initial type: RegularUser by default
-        const newUser: RegularUser = {
-            userId: crypto.randomUUID(), // generate temporary unique ID
-            firstName: "",
-            lastName: "",
-            email: "",
-            pin: "",
-            adminLevel: null,
-            roles: [],       // empty roles for now
-            // learners omitted for RegularUser
-        };
-
-        setSelectedUser(newUser);
-        setIsNewUser(true);
-        setIsModalOpen(true);
-
-        // Reset state fields for form
-        setFirstName("");
-        setLastName("");
-        setEmail("");
-        setPin("");
-        setSelectedAdminLevel(null);
-        setSelectedRoles([]);
-        setSelectedLearners([]);
+    const setArchived = async (person: User, archived: boolean) => {
+        setNotice(null);
+        try {
+            const response = await fetch(`/api/users/${person.userId}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ archived }),
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error || "Unable to update this person.");
+            setPeople((current) => current.map((item) => item.userId === person.userId ? result.user : item));
+            setEditing(null);
+            setNotice({ type: "success", text: `${formatFullName(person)} was ${archived ? "archived" : "reactivated"}.` });
+        } catch (error) {
+            setNotice({ type: "error", text: error instanceof Error ? error.message : "Unable to update this person." });
+        }
     };
-
-
-
-    const availableRoles = [
-        'staff',
-        'administrator',
-        'learner',
-        'volunteer',
-        'guardian',
-    ];
-
-    const roleOptions = availableRoles.map((role) => ({ value: role, label: role }));
-
-    const isPinValid = /^\d{4}$/.test(pin);
-    const isNameValid = firstName.trim() !== "" && lastName.trim() !== "";
-    const isRolesValid = selectedRoles.length > 0;
-
-    const isFormValid = isPinValid && isNameValid && isRolesValid;
 
     return (
-        <div className="relative">
-            {/* Toasts */}
-            <div className="fixed top-6 right-6 space-y-3 z-50">
-                {toasts.map((toast) => (
-                    <div
-                        key={toast.id}
-                        className={`px-4 py-2 rounded-lg shadow-md text-white font-medium transition-transform ${
-                            toast.type === "success"
-                                ? "bg-green-600 animate-slide-in"
-                                : "bg-red-600 animate-slide-in"
-                        }`}
-                    >
-                        {toast.message}
+        <div>
+            {notice && (
+                <div role="status" className={`mb-5 flex items-start justify-between gap-3 rounded-xl border px-4 py-3 text-sm font-bold ${notice.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-red-200 bg-red-50 text-red-800"}`}>
+                    <span className="flex items-center gap-2"><Check className="h-4 w-4" />{notice.text}</span>
+                    <button aria-label="Dismiss notification" onClick={() => setNotice(null)}><X className="h-4 w-4" /></button>
+                </div>
+            )}
+
+            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div className="border-b border-slate-200 p-4 sm:p-5">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="relative flex-1 lg:max-w-sm">
+                            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by name, email, or role" className="min-h-11 w-full rounded-xl border border-slate-300 bg-white pl-10 pr-4 text-sm outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100" />
+                        </div>
+                        {canEdit && <button onClick={openNewPerson} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-5 text-sm font-black text-white transition hover:bg-emerald-800"><Plus className="h-4 w-4" />Add person</button>}
                     </div>
-                ))}
-            </div>
-
-            <div className="flex items-center justify-between mb-4">
-                {canEdit &&
-                <button
-                    onClick={handleAddUser}
-                    className="px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700"
-                >
-                    Add person
-                </button>
-                }
-
-                <div className="relative w-64">
-                    <input
-                        type="text"
-                        placeholder="Search people..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="border border-gray-300 rounded-lg px-3 py-2 pr-9 w-full focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                    />
-
-                    {searchQuery && (
-                        <button
-                            type="button"
-                            onClick={() => setSearchQuery("")}
-                            className="absolute inset-y-0 right-2 flex items-center justify-center w-5 h-5 my-auto rounded-full text-gray-500 hover:text-gray-700 hover:bg-gray-200 transition"
-                        >
-                            ×
-                        </button>
-                    )}
+                    <div className="mt-5 flex gap-2 overflow-x-auto pb-1" aria-label="People groups">
+                        {views.map(({ id, label }) => (
+                            <button key={id} onClick={() => setView(id)} className={`shrink-0 rounded-full px-4 py-2 text-sm font-bold transition ${view === id ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
+                                {label} <span className={view === id ? "text-white/65" : "text-slate-400"}>{counts[id]}</span>
+                            </button>
+                        ))}
+                    </div>
                 </div>
 
+                {visiblePeople.length === 0 ? (
+                    <div className="px-6 py-16 text-center"><UsersRound className="mx-auto h-10 w-10 text-slate-300" /><h2 className="mt-3 font-black text-slate-800">No people found</h2><p className="mt-1 text-sm text-slate-500">Try another group or search.</p></div>
+                ) : (
+                    <div className="divide-y divide-slate-100">
+                        {visiblePeople.map((person) => (
+                            <div key={person.userId} className="grid gap-4 p-4 sm:p-5 md:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_minmax(0,1fr)_auto] md:items-center">
+                                <div className="flex min-w-0 items-center gap-3">
+                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700"><UserRound className="h-5 w-5" /></div>
+                                    <div className="min-w-0"><p className="truncate font-black text-slate-900">{formatFullName(person)}</p><p className="truncate text-sm text-slate-500">{person.email || "No email address"}</p></div>
+                                </div>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {person.roles.map((role) => <span key={role} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{roleLabels[role] ?? role}</span>)}
+                                </div>
+                                <div className="text-sm text-slate-500">
+                                    {person.roles.includes("guardian") ? `${person.learners?.length ?? 0} connected student${person.learners?.length === 1 ? "" : "s"}` : person.roles.includes("administrator") ? `${person.adminLevel === "edit" ? "Full" : "Read-only"} admin access` : person.archived ? "Attendance history retained" : "Active"}
+                                </div>
+                                {canEdit && <button onClick={() => openPerson(person)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-300 px-3 text-sm font-bold text-slate-700 hover:bg-slate-50"><Pencil className="h-4 w-4" />Manage</button>}
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
 
+            {editing && (
+                <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/45" onMouseDown={(event) => event.target === event.currentTarget && setEditing(null)}>
+                    <div role="dialog" aria-modal="true" aria-labelledby="person-editor-title" className="h-full w-full max-w-xl overflow-y-auto bg-white shadow-2xl">
+                        <form onSubmit={savePerson}>
+                            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white/95 px-5 py-4 backdrop-blur">
+                                <div><p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-700">{isNew ? "New person" : "People profile"}</p><h2 id="person-editor-title" className="text-xl font-black text-slate-900">{isNew ? "Add someone" : formatFullName(editing)}</h2></div>
+                                <button type="button" onClick={() => setEditing(null)} aria-label="Close editor" className="rounded-full p-2 text-slate-500 hover:bg-slate-100"><X className="h-5 w-5" /></button>
+                            </div>
 
-            {/* User Table */}
-            <div className="overflow-hidden rounded-2xl shadow-md bg-white border border-gray-200">
-                <table className="min-w-full border-collapse">
-                    <thead className="bg-gray-100 text-gray-700 uppercase text-sm tracking-wide">
-                    <tr>
-                        <th
-                            onClick={() => handleSort("name")}
-                            className={`px-6 py-3 text-left font-semibold cursor-pointer select-none ${
-                                sortConfig?.key === "name" ? "text-blue-600" : ""
-                            }`}
-                        >
-                            Full Name
-                            {sortConfig?.key === "name" && (
-                                <span className="ml-1">{sortConfig.direction === "asc" ? "▲" : "▼"}</span>
-                            )}
-                        </th>
-                        <th
-                            onClick={() => handleSort("email")}
-                            className={`px-6 py-3 text-left font-semibold cursor-pointer select-none ${
-                                sortConfig?.key === "email" ? "text-blue-600" : ""
-                            }`}
-                        >
-                            Email
-                            {sortConfig?.key === "email" && (
-                                <span className="ml-1">{sortConfig.direction === "asc" ? "▲" : "▼"}</span>
-                            )}
-                        </th>
-                        <th className="px-6 py-3 text-left font-semibold relative">
-                            Roles
-                            <button
-                                ref={roleFilterButtonRef}
-                                onClick={() => setIsDropdownOpen((prev) => !prev)}
-                                className="ml-2 text-gray-500 hover:text-gray-700"
-                            >
-                                &#x25BC;
-                            </button>
-
-                            {isDropdownOpen && (
-                                <Dropdown
-                                    isOpen={isDropdownOpen}
-                                    onClose={() => setIsDropdownOpen(false)}
-                                    triggerRef={roleFilterButtonRef as RefObject<HTMLElement>}
-                                    offsetY={4}
-                                    className="w-44"
-                                >
-                                    <div className="flex justify-between mb-2 text-sm">
-                                        <button
-                                            type="button"
-                                            className="text-blue-600 hover:underline"
-                                            onClick={handleSelectAll}
-                                        >
-                                            Select All
-                                        </button>
-                                        <button
-                                            type="button"
-                                            className="text-blue-600 hover:underline"
-                                            onClick={handleDeselectAll}
-                                        >
-                                            Deselect All
-                                        </button>
+                            <div className="space-y-8 p-5 sm:p-7">
+                                <section>
+                                    <h3 className="font-black text-slate-900">Basic information</h3>
+                                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                                        <label className="text-sm font-bold text-slate-700">First name<input required value={editing.firstName} onChange={(event) => updateEditing({ firstName: event.target.value })} className="mt-1.5 min-h-11 w-full rounded-xl border border-slate-300 px-3 font-normal outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100" /></label>
+                                        <label className="text-sm font-bold text-slate-700">Last name<input required value={editing.lastName} onChange={(event) => updateEditing({ lastName: event.target.value })} className="mt-1.5 min-h-11 w-full rounded-xl border border-slate-300 px-3 font-normal outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100" /></label>
+                                        <label className="text-sm font-bold text-slate-700 sm:col-span-2">Email address <span className="font-normal text-slate-400">(required for administrators)</span><input type="email" value={editing.email ?? ""} onChange={(event) => updateEditing({ email: event.target.value })} className="mt-1.5 min-h-11 w-full rounded-xl border border-slate-300 px-3 font-normal outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100" /></label>
                                     </div>
-                                    <div className="flex flex-col gap-1 max-h-60 overflow-y-auto">
-                                        {availableRoles.map((role) => (
-                                            <label key={role} className="flex items-center gap-2">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={roleFilter[role]}
-                                                    onChange={() => handleRoleToggle(role)}
-                                                />
-                                                {role}
-                                            </label>
-                                        ))}
+                                </section>
+
+                                <section>
+                                    <h3 className="font-black text-slate-900">School roles</h3><p className="mt-1 text-sm text-slate-500">Choose every role this person has.</p>
+                                    <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                                        {USER_ROLES.map((role) => {
+                                            const selected = editing.roles.includes(role);
+                                            return <button key={role} type="button" onClick={() => toggleRole(role)} className={`min-h-11 rounded-xl border px-3 text-sm font-bold transition ${selected ? "border-emerald-600 bg-emerald-50 text-emerald-800" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}>{selected && <Check className="mr-1 inline h-4 w-4" />}{roleLabels[role]}</button>;
+                                        })}
                                     </div>
-                                </Dropdown>
-                            )}
-                        </th>
-                        <th className="px-6 py-3 text-left font-semibold">PIN</th>
-                        <th className="px-6 py-3 text-left font-semibold">Admin Level</th>
-                        <th className="px-6 py-3 text-left font-semibold">Learners</th>
-                        {canEdit && <th className="px-6 py-3 text-left font-semibold">Actions</th>}
-                    </tr>
-                    </thead>
+                                    {!editing.roles.length && <p className="mt-2 text-sm font-bold text-red-600">Select at least one role.</p>}
+                                </section>
 
-                    <tbody className="divide-y divide-gray-200 text-gray-800">
-                    {filteredUsers.map((u, i) => (
-                        <tr
-                            key={u.userId}
-                            className={`transition-colors ${i % 2 === 0 ? "bg-white" : "bg-gray-50"} hover:bg-blue-50`}
-                        >
-                            <td className="px-6 py-3">{formatFullName(u)}</td>
-                            <td className="px-6 py-3">{u.email ?? "-"}</td>
-                            <td className="px-6 py-3">{formatRoles(u)}</td>
-                            <td className="px-6 py-3 font-mono text-gray-600">{u.pin ?? "-"}</td>
-                            <td className="px-6 py-3">{formatAdminLevel(u)}</td>
-                            <td className="px-6 py-3">{formatLearners(u)}</td>
-                            {canEdit &&
-                            <td className="px-6 py-3">
-                                <div className="flex gap-2">
-                                    {/* Edit Button */}
-                                    <button
-                                        onClick={() => handleEditClick(u)}
-                                        className="p-2 text-blue-600 hover:text-blue-800 rounded transition cursor-pointer"
-                                        title="Edit User"
-                                    >
-                                        <FaEdit />
-                                    </button>
+                                {editing.roles.includes("administrator") && (
+                                    <section className="rounded-2xl border border-indigo-200 bg-indigo-50 p-4">
+                                        <div className="flex gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 text-indigo-700" /><div className="flex-1"><h3 className="font-black text-indigo-950">Administrator access</h3><p className="mt-1 text-sm text-indigo-800/75">Read-only administrators can view records. Full administrators can change people, settings, and attendance.</p><select value={editing.adminLevel ?? "read-only"} onChange={(event) => updateEditing({ adminLevel: event.target.value })} className="mt-3 min-h-11 w-full rounded-xl border border-indigo-200 bg-white px-3 text-sm font-bold text-slate-800">{ADMIN_LEVELS.map((level) => <option key={level} value={level}>{level === "edit" ? "Full edit access" : "Read-only access"}</option>)}</select></div></div>
+                                    </section>
+                                )}
 
-                                    {/* Delete Button */}
-                                    <button
-                                        onClick={() => handleDeleteClick(u)}
-                                        className="p-2 text-red-600 hover:text-red-800 rounded transition cursor-pointer"
-                                        title="Delete User"
-                                    >
-                                        <FaTrash />
-                                    </button>
-                                </div>
-                            </td>
-                            }
-                        </tr>
-                    ))}
-                    </tbody>
-                </table>
-            </div>
+                                {editing.roles.includes("guardian") && (
+                                    <section>
+                                        <h3 className="font-black text-slate-900">Family connections</h3><p className="mt-1 text-sm text-slate-500">Select the students this person may clock in and out.</p>
+                                        <div className="mt-3 max-h-52 space-y-2 overflow-y-auto rounded-xl border border-slate-200 p-2">
+                                            {people.filter((person) => !person.archived && person.roles.includes("learner") && person.userId !== editing.userId).map((learner) => {
+                                                const selected = editing.learners?.some(({ userId }) => userId === learner.userId);
+                                                return <button key={learner.userId} type="button" onClick={() => toggleLearner(learner)} className={`flex min-h-11 w-full items-center justify-between rounded-lg px-3 text-left text-sm font-bold ${selected ? "bg-emerald-50 text-emerald-800" : "hover:bg-slate-50"}`}><span>{formatFullName(learner)}</span>{selected && <Check className="h-4 w-4" />}</button>;
+                                            })}
+                                        </div>
+                                    </section>
+                                )}
 
-            {/* Modal */}
-            {isModalOpen && selectedUser && (
-                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-xl shadow-lg w-full max-w-lg p-6">
-                        <h2 className="text-xl font-semibold mb-4 text-gray-800">
-                            {isNewUser
-                                ? "Add User"
-                                : `Edit User: ${formatFullName(selectedUser)}`}
-                        </h2>
+                                <section className="rounded-2xl border border-slate-200 p-4">
+                                    <div className="flex items-start gap-3"><KeyRound className="mt-0.5 h-5 w-5 text-slate-500" /><div className="flex-1"><h3 className="font-black text-slate-900">Kiosk PIN</h3><p className="mt-1 text-sm text-slate-500">{isNew ? "Set a private four-digit PIN." : "The current PIN is hidden. Generate a replacement only when needed."}</p><div className="mt-3 flex gap-2"><input aria-label="New four-digit PIN" inputMode="numeric" maxLength={4} placeholder={isNew ? "4 digits" : "Unchanged"} value={editing.pin} onChange={(event) => updateEditing({ pin: event.target.value.replace(/\D/g, "").slice(0, 4) })} className="min-h-11 min-w-0 flex-1 rounded-xl border border-slate-300 px-3 font-mono tracking-[0.25em] outline-none focus:border-emerald-600" /><button type="button" onClick={() => updateEditing({ pin: generatePin() })} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 px-3 text-sm font-bold text-slate-700 hover:bg-slate-50"><RotateCcw className="h-4 w-4" />Generate</button></div></div></div>
+                                </section>
 
-                        <form onSubmit={handleSaveUser} className="space-y-4">
-                            {/* Name */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">First Name</label>
-                                <input
-                                    type="text"
-                                    name="firstName"
-                                    defaultValue={firstName}
-                                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
-                                    onChange={(e) => setFirstName(e.target.value)}
-                                    required
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Last Name</label>
-                                <input
-                                    type="text"
-                                    name="lastName"
-                                    defaultValue={lastName}
-                                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
-                                    onChange={(e) => setLastName(e.target.value)}
-                                    required
-                                />
+                                {!isNew && canEdit && (
+                                    <section className="border-t border-slate-200 pt-6">
+                                        <h3 className="font-black text-slate-900">Account status</h3><p className="mt-1 text-sm text-slate-500">Archiving removes kiosk access while preserving attendance history.</p>
+                                        <button type="button" onClick={() => setArchived(editing, !editing.archived)} className={`mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-black ${editing.archived ? "border-emerald-300 text-emerald-700 hover:bg-emerald-50" : "border-amber-300 text-amber-800 hover:bg-amber-50"}`}>{editing.archived ? <RotateCcw className="h-4 w-4" /> : <Archive className="h-4 w-4" />}{editing.archived ? "Reactivate person" : "Archive person"}</button>
+                                    </section>
+                                )}
                             </div>
 
-                            {!isNameValid && (
-                                <p className="text-sm text-red-600 mt-1">First and last name are required.</p>
-                            )}
-
-                            {/* Email */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Email</label>
-                                <input
-                                    type="email"
-                                    name="email"
-                                    value={email}
-                                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
-                                    onChange={(e) => setEmail(e.target.value)}
-                                />
-                            </div>
-
-                            {/* PIN */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">PIN</label>
-                                <input
-                                    type="text"
-                                    name="pin"
-                                    maxLength={4}
-                                    value={pin}
-                                    onChange={(e) => {
-                                        const value = e.target.value.replace(/\D/g, ""); // remove non-digits
-                                        if (value.length <= 4) setPin(value);
-                                    }}
-                                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 font-mono focus:ring-2 focus:ring-blue-500"
-                                    inputMode="numeric"
-                                    pattern="[0-9]*"
-                                    required
-                                />
-                            </div>
-
-                            {!isPinValid && pin.length >= 0 && (
-                                <p className="text-sm text-red-600 mt-1">PIN must be exactly 4 digits.</p>
-                            )}
-
-                            {/* Roles */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Roles</label>
-                                <Select
-                                    isMulti
-                                    options={roleOptions}
-                                    value={roleOptions.filter((r) => selectedRoles.includes(r.value))}
-                                    onChange={(options: MultiValue<{ value: string; label: string }>) =>
-                                        setSelectedRoles(options.map((o) => o.value))
-                                    }
-                                    className="react-select-container mt-1"
-                                    classNamePrefix="react-select"
-                                />
-                            </div>
-
-                            {!isRolesValid && (
-                                <p className="text-sm text-red-600 mt-1">Select at least one role.</p>
-                            )}
-
-                            {/* Admin Level Dropdown (only visible for administrators) */}
-                            <Transition
-                                show={selectedRoles.includes("administrator")}
-                                enter="transition-opacity duration-150"
-                                enterFrom="opacity-0"
-                                enterTo="opacity-100"
-                                leave="transition-opacity duration-150"
-                                leaveFrom="opacity-100"
-                                leaveTo="opacity-0"
-                            >
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700">Admin Level</label>
-                                    <Select
-                                        options={[
-                                            { value: null, label: "None" },
-                                            { value: "read-only", label: "Read-Only" },
-                                            { value: "edit", label: "Edit" },
-                                        ]}
-                                        isClearable
-                                        value={
-                                            selectedAdminLevel
-                                                ? {
-                                                    value: selectedAdminLevel,
-                                                    label:
-                                                        selectedAdminLevel === "edit"
-                                                            ? "Edit"
-                                                            : selectedAdminLevel === "read-only"
-                                                                ? "Read-Only"
-                                                                : "None",
-                                                }
-                                                : { value: null, label: "None" }
-                                        }
-                                        onChange={(option) => setSelectedAdminLevel(option?.value ?? null)}
-                                        className="react-select-container"
-                                        classNamePrefix="react-select"
-                                        placeholder="Select level..."
-                                    />
-                                </div>
-                            </Transition>
-
-                            {/* Learners Multiselect */}
-                            <Transition
-                                show={selectedRoles.includes("guardian")}
-                                enter="transition-opacity duration-150"
-                                enterFrom="opacity-0"
-                                enterTo="opacity-100"
-                                leave="transition-opacity duration-150"
-                                leaveFrom="opacity-100"
-                                leaveTo="opacity-0"
-                            >
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Learners</label>
-                                    <Select
-                                        isMulti
-                                        options={allUsers
-                                            .filter((u) => u.roles.includes("learner"))
-                                            .map((learner) => ({
-                                                value: learner.userId,
-                                                label: formatFullName(learner),
-                                            }))}
-                                        value={allUsers
-                                            .filter((u) => selectedLearners.includes(u.userId))
-                                            .map((learner) => ({
-                                                value: learner.userId,
-                                                label: formatFullName(learner),
-                                            }))}
-                                        onChange={(options) => setSelectedLearners(options.map((o) => o.value))}
-                                    />
-                                </div>
-                            </Transition>
-
-                            {/* Buttons */}
-                            <div className="flex justify-end gap-3 mt-6">
-                                <button
-                                    type="button"
-                                    onClick={handleCloseModal}
-                                    className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={!isFormValid}
-                                    className={`px-4 py-2 rounded-lg text-white transition-colors
-                                        ${isFormValid ? "bg-blue-600 hover:bg-blue-700" : "bg-gray-400 cursor-not-allowed"}
-                                      `}
-                                >
-                                    {isSaving ? <Spinner/> : (isNewUser ? "Add User" : "Save Changes")}
-                                </button>
-                            </div>
+                            <div className="sticky bottom-0 flex justify-end gap-3 border-t border-slate-200 bg-white/95 px-5 py-4 backdrop-blur"><button type="button" onClick={() => setEditing(null)} className="min-h-11 rounded-xl border border-slate-300 px-5 text-sm font-bold text-slate-700">Cancel</button><button disabled={saving || !editing.firstName.trim() || !editing.lastName.trim() || !editing.roles.length || (isNew && !/^\d{4}$/.test(editing.pin))} className="min-h-11 rounded-xl bg-emerald-700 px-5 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-slate-300">{saving ? "Saving…" : isNew ? "Add person" : "Save changes"}</button></div>
                         </form>
                     </div>
                 </div>
             )}
-
-            {/* Delete Confirmation Modal */}
-            {isDeleteModalOpen && userToDelete && (
-                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-xl shadow-lg w-full max-w-md p-6">
-                        <h2 className="text-lg font-semibold mb-4 text-gray-800">
-                            Confirm Delete
-                        </h2>
-                        <p className="mb-6 text-gray-700">
-                            Are you sure you want to delete {formatFullName(userToDelete)}? This action cannot be undone.
-                        </p>
-                        <div className="flex justify-end gap-3">
-                            <button
-                                className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100"
-                                onClick={() => {
-                                    setIsDeleteModalOpen(false);
-                                    setUserToDelete(null);
-                                }}
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700"
-                                onClick={handleDeleteUser}
-                            >
-                                Delete
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
         </div>
     );
 }
