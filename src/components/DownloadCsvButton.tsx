@@ -10,6 +10,7 @@ interface DownloadCSVButtonProps {
     fileName?: string;
     className?: string;
     onClick?: () => void;
+    disabled?: boolean;
 }
 
 export default function DownloadCSVButton({
@@ -18,6 +19,7 @@ export default function DownloadCSVButton({
                                               fileName = "export.csv",
                                               className,
                                               onClick,
+                                              disabled = false,
                                           }: DownloadCSVButtonProps) {
     const handleDownload = () => {
         if (onClick) {
@@ -40,7 +42,7 @@ export default function DownloadCSVButton({
     };
 
     return (
-        <Button onClick={handleDownload} className={className}>
+        <Button variant="outline" disabled={disabled} onClick={handleDownload} className={className}>
             <Download className="w-4 h-4" /> Export CSV
         </Button>
     );

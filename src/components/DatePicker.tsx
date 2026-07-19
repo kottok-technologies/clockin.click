@@ -47,12 +47,12 @@ export default function DatePicker({ selectedDate, setSelectedDate }: DatePicker
     }, []);
 
     return (
-        <div ref={containerRef} className="relative inline-block">
+        <div ref={containerRef} className="relative w-full sm:w-auto">
             {/* Trigger Button */}
             <Button
                 variant="outline"
                 onClick={() => setShowCalendar((prev) => !prev)}
-                className="w-48 justify-start text-left font-normal whitespace-nowrap"
+                className="w-full justify-start whitespace-nowrap text-left font-normal sm:w-48"
             >
                 {selectedDate ? format(selectedDate, "PPP") : "Pick a date"}
             </Button>

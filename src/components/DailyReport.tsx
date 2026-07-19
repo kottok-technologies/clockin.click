@@ -9,6 +9,7 @@ import AttendanceTable from "@/components/AttendanceTable";
 import DownloadCSVButton from "@/components/DownloadCsvButton";
 import { CheckCircle2, ClockAlert, Timer } from "lucide-react";
 import { DEFAULT_SCHOOL_SCHEDULE, scheduleGroupForUserType, SchoolSchedule } from "@/types/schedule";
+import { ReportError, ReportToolbar } from "@/components/ReportChrome";
 
 type BaseUser = {
     userId: string;
@@ -36,6 +37,7 @@ export default function DailyReport() {
     const [selectedDate, setSelectedDate] = useState<Date>(new Date());
     const [query, setQuery] = useState("");
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const [schedule, setSchedule] = useState<SchoolSchedule>(DEFAULT_SCHOOL_SCHEDULE);
     const [userTypeFilter, setUserTypeFilter] = useState(() => {
         if (typeof window !== "undefined") {
@@ -62,6 +64,7 @@ export default function DailyReport() {
     useEffect(() => {
         const fetchRecords = async () => {
             setLoading(true);
+            setError(null);
             try {
                 const formattedDate = format(selectedDate, 'yyyy-MM-dd');
                 const [attendanceResponse, scheduleResponse] = await Promise.all([
@@ -75,6 +78,8 @@ export default function DailyReport() {
                 if (scheduleResponse.ok) setSchedule(await scheduleResponse.json());
             } catch (err) {
                 console.error('Error fetching attendance:', err);
+                setRecords([]);
+                setError(err instanceof Error ? err.message : "Failed to load attendance.");
             } finally {
                 setLoading(false);
             }
@@ -139,17 +144,14 @@ export default function DailyReport() {
     const onTimeDepartureCount = [...lastDepartureByUser.values()].filter((time) => time >= dayWindow.endTime).length;
 
     return (
-        <div className="p-6 space-y-4">
+        <div className="space-y-5">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <MetricChip icon={<CheckCircle2 className="h-5 w-5" />} label="On-time arrivals" value={onTimeCount} tone="emerald" />
                 <MetricChip icon={<ClockAlert className="h-5 w-5" />} label="Late arrivals" value={lateCount} tone="amber" />
                 <MetricChip icon={<CheckCircle2 className="h-5 w-5" />} label="On-time departures" value={onTimeDepartureCount} tone="emerald" />
                 <MetricChip icon={<Timer className="h-5 w-5" />} label="Expected day" value={`${dayWindow.startTime}–${dayWindow.endTime}`} tone="slate" />
             </div>
-            <div className="flex flex-wrap gap-3 items-center">
-
-            </div>
-            <div className="flex items-center gap-3">
+            <ReportToolbar>
                 <div className="flex items-center gap-2">
                     <DatePicker
                         selectedDate={selectedDate}
@@ -161,21 +163,21 @@ export default function DailyReport() {
                     value={userTypeFilter}
                     onValueChange={setUserTypeFilter}
                 >
-                    <SelectTrigger className="w-40">
+                    <SelectTrigger className="w-full sm:w-44">
                         <SelectValue placeholder="Filter by type" />
                     </SelectTrigger>
                     <SelectContent>
                         <SelectItem value="staff">Staff</SelectItem>
-                        <SelectItem value="learner">Learner</SelectItem>
+                        <SelectItem value="learner">Students</SelectItem>
                         <SelectItem value="volunteer">Volunteer</SelectItem>
                     </SelectContent>
                 </Select>
 
                 <Input
-                    placeholder="Search name..."
+                    placeholder="Search people..."
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    className="w-60"
+                    className="w-full sm:w-60"
                 />
                 <DownloadCSVButton
                     columns={['User', 'State', 'Clocked By', 'DateTimeStamp', 'User Type']}
@@ -187,12 +189,13 @@ export default function DailyReport() {
                         userTypeFilter,
                     ])}
                     fileName={`attendance-${format(selectedDate, "yyyy-MM-dd")}.csv`}
-                    className="flex items-center gap-2"
+                    className="sm:ml-auto"
+                    disabled={loading || filtered.length === 0}
                 />
 
-            </div>
+            </ReportToolbar>
 
-            <div className="overflow-x-auto border rounded-lg">
+            {error && <ReportError message={error} />}
 
                 <AttendanceTable
                     data={filtered}
@@ -242,8 +245,9 @@ export default function DailyReport() {
                             render: (r) => format(new Date(r.dateTimeStamp), "PPpp"),
                         },
                     ]}
+                    emptyMessage="No attendance was recorded for this day and group."
+                    getRowKey={(record) => `${record.user?.userId ?? "unknown"}-${record.dateTimeStamp}`}
                 />
-            </div>
         </div>
     );
 }
