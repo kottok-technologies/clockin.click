@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { format, parseISO } from "date-fns";
+import { addMonths, endOfMonth, format, parseISO } from "date-fns";
 import AttendanceTable, { Column } from "@/components/AttendanceTable";
 import DownloadCSVButton from "@/components/DownloadCsvButton";
-import { YearPicker, selectableYears } from "@/components/PeriodPicker";
+import { MonthPicker, selectableYears } from "@/components/PeriodPicker";
 import {
     Select,
     SelectContent,
@@ -24,13 +24,24 @@ type Metric = "presence" | "hours";
 export default function YearlyReport() {
     const now = useMemo(() => new Date(), []);
     const [year, setYear] = useState(now.getFullYear());
+    const [startMonth, setStartMonth] = useState(0);
     const [metric, setMetric] = useState<Metric>("presence");
 
     const years = useMemo(() => selectableYears(now.getFullYear()), [now]);
 
+    const reportRange = useMemo(() => {
+        const firstMonth = new Date(year, startMonth, 1);
+        const lastMonth = endOfMonth(addMonths(firstMonth, 11));
+        return {
+            start: format(firstMonth, "yyyy-MM-dd"),
+            end: format(lastMonth, "yyyy-MM-dd"),
+            label: `${format(firstMonth, "MMM yyyy")} – ${format(lastMonth, "MMM yyyy")}`,
+        };
+    }, [startMonth, year]);
+
     const { summary, loading, error } = useAttendanceSummary({
-        start: `${year}-01-01`,
-        end: `${year}-12-31`,
+        start: reportRange.start,
+        end: reportRange.end,
         userTypes: REPORTED_ROLES,
         granularity: "month",
     });
@@ -158,12 +169,21 @@ export default function YearlyReport() {
     return (
         <div className="space-y-5">
             <div className="grid gap-3 sm:grid-cols-3">
-                <ReportMetric label="School days" value={totalSchoolDays} detail={String(year)} />
+                <ReportMetric label="School days" value={totalSchoolDays} detail={reportRange.label} />
                 <ReportMetric label="People recorded" value={rows.length} />
                 <ReportMetric label="Incomplete punches" value={rows.reduce((total, row) => total + row.totals.incompleteDays, 0)} tone="amber" />
             </div>
             <ReportToolbar>
-                <YearPicker year={year} years={years} onChange={setYear} />
+                <span className="text-sm font-black text-slate-700">School year starts</span>
+                <MonthPicker
+                    year={year}
+                    month={startMonth}
+                    years={years}
+                    onChange={(nextYear, nextMonth) => {
+                        setYear(nextYear);
+                        setStartMonth(nextMonth);
+                    }}
+                />
 
                 <Select value={metric} onValueChange={(v) => setMetric(v as Metric)}>
                     <SelectTrigger className="w-40">
@@ -176,13 +196,13 @@ export default function YearlyReport() {
                 </Select>
 
                 <span className="text-sm font-bold text-slate-600">
-                    Calendar year {year}
+                    12 months beginning {format(new Date(year, startMonth, 1), "MMMM yyyy")}
                 </span>
 
                 <DownloadCSVButton
                     columns={csvColumns}
                     rows={csvRows}
-                    fileName={`YearlyReport_${year}.csv`}
+                    fileName={`YearlyReport_${format(parseISO(reportRange.start), "yyyy-MM")}_to_${format(parseISO(reportRange.end), "yyyy-MM")}.csv`}
                     className="sm:ml-auto"
                     disabled={loading || rows.length === 0}
                 />
