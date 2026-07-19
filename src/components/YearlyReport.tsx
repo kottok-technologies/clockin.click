@@ -15,6 +15,7 @@ import {
 import { useAttendanceSummary } from "@/hooks/useAttendanceSummary";
 import { SummaryRow } from "@/types/attendance";
 import { cn } from "@/lib/utils";
+import { ReportError, ReportMetric, ReportToolbar } from "@/components/ReportChrome";
 
 const REPORTED_ROLES = ["learner", "staff", "volunteer"];
 
@@ -155,8 +156,13 @@ export default function YearlyReport() {
     ]);
 
     return (
-        <div className="p-6 space-y-4">
-            <div className="flex flex-wrap items-center gap-3">
+        <div className="space-y-5">
+            <div className="grid gap-3 sm:grid-cols-3">
+                <ReportMetric label="School days" value={totalSchoolDays} detail={String(year)} />
+                <ReportMetric label="People recorded" value={rows.length} />
+                <ReportMetric label="Incomplete punches" value={rows.reduce((total, row) => total + row.totals.incompleteDays, 0)} tone="amber" />
+            </div>
+            <ReportToolbar>
                 <YearPicker year={year} years={years} onChange={setYear} />
 
                 <Select value={metric} onValueChange={(v) => setMetric(v as Metric)}>
@@ -169,25 +175,27 @@ export default function YearlyReport() {
                     </SelectContent>
                 </Select>
 
-                <span className="text-gray-600">
-                    {year} &middot; {totalSchoolDays} school days
+                <span className="text-sm font-bold text-slate-600">
+                    Calendar year {year}
                 </span>
 
                 <DownloadCSVButton
                     columns={csvColumns}
                     rows={csvRows}
                     fileName={`YearlyReport_${year}.csv`}
-                    className="flex items-center gap-2 ml-auto"
+                    className="sm:ml-auto"
+                    disabled={loading || rows.length === 0}
                 />
-            </div>
+            </ReportToolbar>
 
-            {error && <p className="text-red-600">{error}</p>}
+            {error && <ReportError message={error} />}
 
             <AttendanceTable<SummaryRow>
                 data={rows}
                 columns={columns}
                 loading={loading}
                 emptyMessage="No attendance recorded for this year."
+                getRowKey={(row) => row.userId}
             />
         </div>
     );

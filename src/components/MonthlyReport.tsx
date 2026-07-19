@@ -15,6 +15,7 @@ import {
 import { useAttendanceSummary } from "@/hooks/useAttendanceSummary";
 import { SummaryRow } from "@/types/attendance";
 import { cn } from "@/lib/utils";
+import { ReportError, ReportMetric, ReportToolbar } from "@/components/ReportChrome";
 
 const REPORTED_ROLES = ["learner", "staff", "volunteer"];
 
@@ -153,8 +154,13 @@ export default function MonthlyReport() {
     const monthLabel = format(new Date(year, month, 1), "MMMM yyyy");
 
     return (
-        <div className="p-6 space-y-4">
-            <div className="flex flex-wrap items-center gap-3">
+        <div className="space-y-5">
+            <div className="grid gap-3 sm:grid-cols-3">
+                <ReportMetric label="School days" value={schoolDays.length} detail={monthLabel} />
+                <ReportMetric label="People recorded" value={rows.length} />
+                <ReportMetric label="Incomplete punches" value={rows.reduce((total, row) => total + row.totals.incompleteDays, 0)} tone="amber" />
+            </div>
+            <ReportToolbar>
                 <MonthPicker
                     year={year}
                     month={month}
@@ -175,25 +181,27 @@ export default function MonthlyReport() {
                     </SelectContent>
                 </Select>
 
-                <span className="text-gray-600">
-                    {monthLabel} &middot; {schoolDays.length} school days
+                <span className="text-sm font-bold text-slate-600">
+                    {monthLabel}
                 </span>
 
                 <DownloadCSVButton
                     columns={csvColumns}
                     rows={csvRows}
                     fileName={`MonthlyReport_${format(new Date(year, month, 1), "yyyy-MM")}.csv`}
-                    className="flex items-center gap-2 ml-auto"
+                    className="sm:ml-auto"
+                    disabled={loading || rows.length === 0}
                 />
-            </div>
+            </ReportToolbar>
 
-            {error && <p className="text-red-600">{error}</p>}
+            {error && <ReportError message={error} />}
 
             <AttendanceTable<SummaryRow>
                 data={rows}
                 columns={columns}
                 loading={loading}
                 emptyMessage="No attendance recorded for this month."
+                getRowKey={(row) => row.userId}
             />
         </div>
     );

@@ -1,6 +1,6 @@
 "use client";
 
-import React, {useState, useEffect, useMemo, useCallback} from "react";
+import React, {useState, useEffect, useMemo} from "react";
 import {
     format,
     startOfWeek,
@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import DownloadCSVButton from "@/components/DownloadCsvButton";
 import {fromZonedTime, toZonedTime} from "date-fns-tz";
 import { TIME_ZONE } from "@/utils/attendance";
+import { ReportError, ReportMetric, ReportToolbar } from "@/components/ReportChrome";
 
 type BaseUser = {
     userId: string;
@@ -45,6 +46,7 @@ export default function WeeklyReport() {
     const [records, setRecords] = useState<AttendanceRecord[]>([]);
     const [users, setUsers] = useState<BaseUser[]>([]);
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     // Memoize weekStart and weekEnd to avoid rerender loops
     const weekStart = useMemo(() => startOfWeek(selectedDate, { weekStartsOn: 0 }), [selectedDate]);
@@ -77,9 +79,11 @@ export default function WeeklyReport() {
             try {
                 const res = await fetch(`/api/users?roles=${reportedRoles.join(',')}`);
                 const data = await res.json();
+                if (!res.ok) throw new Error(data.error || "Failed to load people.");
                 setUsers(data);
             } catch (err) {
                 console.error("Error fetching users:", err);
+                setError(err instanceof Error ? err.message : "Failed to load people.");
             }
         })();
     }, [reportedRoles]);
@@ -88,6 +92,7 @@ export default function WeeklyReport() {
     useEffect(() => {
         const fetchRecords = async () => {
             setLoading(true);
+            setError(null);
             try {
                 const start = format(weekStart, "yyyy-MM-dd");
                 const end = format(weekEnd, "yyyy-MM-dd");
@@ -95,17 +100,17 @@ export default function WeeklyReport() {
                 const data = await res.json();
 
                 if (!res.ok) {
-                    console.error("API Error:", data.error || "Unknown error");
-                    return [];
+                    throw new Error(data.error || "Failed to load weekly attendance.");
                 }
 
                 if (!Array.isArray(data)) {
-                    console.error("Unexpected data shape:", data);
-                    return [];
+                    throw new Error("Attendance data could not be read.");
                 }
                 setRecords(data);
             } catch (err) {
                 console.error("Error fetching weekly attendance:", err);
+                setRecords([]);
+                setError(err instanceof Error ? err.message : "Failed to load weekly attendance.");
             } finally {
                 setLoading(false);
             }
@@ -206,46 +211,39 @@ export default function WeeklyReport() {
         ]);
     }, [userDayData]);
 
-    const handleDownloadCSV = useCallback(() => {
-        if (!csvRows.length) return;
-
-        const headers = ["Name", ...daysOfWeek.map((d) => format(d, "EEE MM/dd"))];
-
-        const csvContent = [headers, ...csvRows]
-            .map((row) => row.map((cell) => `"${cell ?? ""}"`).join(","))
-            .join("\n");
-
-        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `WeeklyReport_${format(weekStart, "yyyy-MM-dd")}_to_${format(weekEnd, "yyyy-MM-dd")}.csv`;
-        a.click();
-        URL.revokeObjectURL(url);
-    }, [csvRows, daysOfWeek, weekStart, weekEnd]);
+    const completeDays = userDayData.flatMap(({ days }) => days).filter(({ status }) => status === "Present").length;
+    const partialDays = userDayData.flatMap(({ days }) => days).filter(({ status }) => status === "Partial").length;
 
 
     return (
-        <div className="p-6 space-y-4">
-            <div className="flex items-center gap-3">
+        <div className="space-y-5">
+            <div className="grid gap-3 sm:grid-cols-3">
+                <ReportMetric label="People" value={users.length} detail="Students, staff & volunteers" />
+                <ReportMetric label="Complete days" value={completeDays} tone="emerald" />
+                <ReportMetric label="Incomplete days" value={partialDays} tone="amber" />
+            </div>
+            <ReportToolbar>
                 <DatePicker selectedDate={selectedDate} setSelectedDate={setSelectedDate} />
-                <span className="text-gray-600">
-                    Week of {format(weekStart, "MMM d")} - {format(weekEnd, "MMM d, yyyy")}
+                <span className="text-sm font-bold text-slate-600">
+                    {format(weekStart, "MMM d")} – {format(weekEnd, "MMM d, yyyy")}
                 </span>
                 <DownloadCSVButton
                     columns={["Name", ...daysOfWeek.map((d) => format(d, "EEE MM/dd"))]}
                     rows={csvRows}
                     fileName={`WeeklyReport_${format(weekStart, "yyyy-MM-dd")}_to_${format(weekEnd, "yyyy-MM-dd")}.csv`}
-                    className="flex items-center gap-2"
-                    onClick={handleDownloadCSV}
+                    className="sm:ml-auto"
+                    disabled={loading || csvRows.length === 0}
                 />
-            </div>
+            </ReportToolbar>
+
+            {error && <ReportError message={error} />}
 
             <AttendanceTable<BaseUser>
                 data={users}
                 columns={columns}
                 loading={loading}
                 emptyMessage="No users found."
+                getRowKey={(user) => user.userId}
             />
         </div>
     );
