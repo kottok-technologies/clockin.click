@@ -16,6 +16,18 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## Testing
+
+Run the automated test suite once:
+
+```bash
+npm test
+```
+
+Use `npm run test:watch` while developing, or `npm run test:coverage` to generate
+the coverage report. CI enforces a minimum of 90% for statements, branches,
+functions, and lines across the covered application modules.
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
