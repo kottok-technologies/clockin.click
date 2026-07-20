@@ -13,8 +13,13 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "json-summary"],
       include: [
+        "src/app/api/demo/reset/route.ts",
+        "src/app/api/settings/schedule/route.ts",
+        "src/app/api/users/route.ts",
+        "src/app/api/users/[id]/status/route.ts",
         "src/types/schedule.ts",
         "src/types/user.ts",
+        "src/utils/apiAuth.ts",
         "src/utils/attendance.ts",
         "src/utils/formatters.ts",
         "src/utils/kioskMock.ts",
