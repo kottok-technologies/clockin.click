@@ -28,6 +28,15 @@ Use `npm run test:watch` while developing, or `npm run test:coverage` to generat
 the coverage report. CI enforces a minimum of 90% for statements, branches,
 functions, and lines across the covered application modules.
 
+Browser-level kiosk tests run with Playwright and the local kiosk mock:
+
+```bash
+npx playwright install chromium
+npm run test:e2e
+```
+
+Use `npm run test:e2e:ui` for Playwright's interactive test runner.
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
