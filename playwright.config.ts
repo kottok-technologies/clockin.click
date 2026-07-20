@@ -21,9 +21,13 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
     env: {
+      DEMO_MODE: "true",
       LOCAL_KIOSK_MOCK: "true",
+      LOCAL_PEOPLE_MOCK: "true",
       NEXT_PUBLIC_DEMO_MODE: "true",
       NEXT_PUBLIC_SCHOOL_NAME: "Clockin.Click Demo School",
+      NEXTAUTH_SECRET: "clockinclick-playwright-only-secret",
+      NEXTAUTH_URL: "http://127.0.0.1:3000",
     },
   },
 });

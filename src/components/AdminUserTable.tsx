@@ -11,6 +11,7 @@ import {
     RotateCcw,
     Search,
     ShieldCheck,
+    Trash2,
     UserRound,
     UsersRound,
     X,
@@ -74,6 +75,7 @@ export default function AdminUserTable({ users }: Props) {
     const [editing, setEditing] = useState<User | null>(null);
     const [isNew, setIsNew] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [confirmingDelete, setConfirmingDelete] = useState(false);
     const [notice, setNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
     const counts = useMemo(() => Object.fromEntries(
@@ -95,12 +97,14 @@ export default function AdminUserTable({ users }: Props) {
         setIsNew(true);
         setEditing(emptyUser());
         setNotice(null);
+        setConfirmingDelete(false);
     };
 
     const openPerson = (person: User) => {
         setIsNew(false);
         setEditing({ ...person, pin: "", learners: person.learners ? [...person.learners] : undefined } as User);
         setNotice(null);
+        setConfirmingDelete(false);
     };
 
     const updateEditing = (updates: Partial<User>) => {
@@ -170,6 +174,24 @@ export default function AdminUserTable({ users }: Props) {
             setNotice({ type: "success", text: `${formatFullName(person)} was ${archived ? "archived" : "reactivated"}.` });
         } catch (error) {
             setNotice({ type: "error", text: error instanceof Error ? error.message : "Unable to update this person." });
+        }
+    };
+
+    const deletePerson = async (person: User) => {
+        setSaving(true);
+        setNotice(null);
+        try {
+            const response = await fetch(`/api/users/${person.userId}`, { method: "DELETE" });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error || "Unable to delete this person.");
+            setPeople((current) => current.filter(({ userId }) => userId !== person.userId));
+            setEditing(null);
+            setConfirmingDelete(false);
+            setNotice({ type: "success", text: `${formatFullName(person)} was permanently deleted.` });
+        } catch (error) {
+            setNotice({ type: "error", text: error instanceof Error ? error.message : "Unable to delete this person." });
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -279,6 +301,22 @@ export default function AdminUserTable({ users }: Props) {
                                     <section className="border-t border-slate-200 pt-6">
                                         <h3 className="font-black text-slate-900">Account status</h3><p className="mt-1 text-sm text-slate-500">Archiving removes kiosk access while preserving attendance history.</p>
                                         <button type="button" onClick={() => setArchived(editing, !editing.archived)} className={`mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-black ${editing.archived ? "border-emerald-300 text-emerald-700 hover:bg-emerald-50" : "border-amber-300 text-amber-800 hover:bg-amber-50"}`}>{editing.archived ? <RotateCcw className="h-4 w-4" /> : <Archive className="h-4 w-4" />}{editing.archived ? "Reactivate person" : "Archive person"}</button>
+                                        {editing.archived && (
+                                            <div className="mt-5 border-t border-red-100 pt-5">
+                                                {!confirmingDelete ? (
+                                                    <button type="button" onClick={() => setConfirmingDelete(true)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-red-300 px-4 text-sm font-black text-red-700 hover:bg-red-50"><Trash2 className="h-4 w-4" />Delete permanently</button>
+                                                ) : (
+                                                    <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+                                                        <p className="text-sm font-black text-red-900">Permanently delete {formatFullName(editing)}?</p>
+                                                        <p className="mt-1 text-sm text-red-700">This cannot be undone. Attendance records remain retained separately.</p>
+                                                        <div className="mt-3 flex flex-wrap gap-2">
+                                                            <button type="button" onClick={() => setConfirmingDelete(false)} className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm font-bold text-slate-700">Cancel deletion</button>
+                                                            <button type="button" disabled={saving} onClick={() => deletePerson(editing)} className="min-h-10 rounded-lg bg-red-700 px-3 text-sm font-black text-white disabled:bg-slate-300">{saving ? "Deleting…" : "Confirm permanent deletion"}</button>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                     </section>
                                 )}
                             </div>
