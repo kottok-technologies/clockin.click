@@ -37,6 +37,18 @@ npm run test:e2e
 
 Use `npm run test:e2e:ui` for Playwright's interactive test runner.
 
+Production smoke checks run after the main test workflow succeeds, every six
+hours, and on demand. They verify that each public kiosk remains available over
+HTTPS without being redirected to administrator authentication. Set the
+`SMOKE_TEST_URLS` repository variable to a comma-separated list to override the
+default demo and Wildflower sites.
+
+Run the same checks locally with:
+
+```bash
+SMOKE_TEST_URLS=https://demo.clockin.click npm run test:smoke
+```
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.

@@ -1,0 +1,36 @@
+name: Smoke test deployed schools
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_run:
+    workflows: ["Test"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: school-production-smoke
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Wait for Amplify and verify school kiosks
+        env:
+          SMOKE_TEST_URLS: ${{ vars.SMOKE_TEST_URLS || 'https://demo.clockin.click,https://wildflower.clockin.click' }}
+          SMOKE_TEST_ATTEMPTS: "30"
+          SMOKE_TEST_DELAY_MS: "20000"
+        run: npm run test:smoke
